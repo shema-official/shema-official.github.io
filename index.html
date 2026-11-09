@@ -21,6 +21,7 @@ const M = () => $('#month').value;
 const practices = () => D.events.filter(e => e.off !== 'TRUE');
 const mine = name => D.responses.filter(r => r.name === name);
 const answered = name => practices().every(ev => mine(name).some(r => r.eventId === ev.id));
+const posList = name => (D.members.find(m => m.name === name)?.positions || '').split(',').filter(Boolean);
 const posText = name => (D.members.find(m => m.name === name)?.positions || '').split(',').filter(Boolean).join(' · ');
 
 async function load() {
@@ -98,7 +99,7 @@ function summary(fresh) {
           ${r && !y ? `<div class="mt-2 flex flex-wrap items-center gap-2 text-xs"><span class="text-rose-700 font-medium">사유: ${esc(r.reason)}</span><span class="text-slate-300">|</span>
             <span class="font-semibold ${r.sundayOk === 'Y' ? 'text-emerald-700' : 'text-rose-600'}">주일 예배 ${r.sundayOk === 'Y' ? '참석 가능' : '불가'}</span></div>` : ''}</div>
         ${!r ? '<span class="self-start sm:self-center px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">미응답</span>'
-          : y ? '<span class="self-start sm:self-center inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>연습 참석</span>'
+          : y ? `<span class="self-start sm:self-center inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>연습 참석${r.roles ? ' · ' + esc(r.roles.split(',').join('·')) : ''}</span>`
           : '<span class="self-start sm:self-center inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i>연습 불참</span>'}
       </div>`;
     }).join('')}</div></div>`;
@@ -139,6 +140,9 @@ function form() {
             <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4 text-amber-500"></i>2. 다음날 주일 예배는 참석할 수 있나요? <span class="text-rose-500">*</span></span>
             <div class="grid grid-cols-2 sm:flex gap-1.5 shrink-0">${choice(`data-s="${id}" data-v="Y"`, d.sundayOk === 'Y', 'emerald', '참석 가능')}${choice(`data-s="${id}" data-v="N"`, d.sundayOk === 'N', 'rose', '불가')}</div>
           </div></div>` : ''}
+        ${d.attend === 'Y' && posList(me).length > 1 ? `<div class="mt-4 pt-4 border-t border-emerald-100 fade-in">
+          <label class="block text-xs font-bold text-slate-700 mb-2">어떤 역할로 참석하나요? <span class="text-rose-500">*</span> <span class="font-normal text-slate-400">여러 개 선택 가능</span></label>
+          <div class="flex flex-wrap gap-1.5">${posList(me).map(p => choice(`data-role="${id}" data-v="${esc(p)}"`, d.roles?.includes(p), 'emerald', esc(p))).join('')}</div></div>` : ''}
       </div>`;
     }).join('')}</div>
     <div class="sticky bottom-4 z-20 pt-2">
@@ -151,17 +155,18 @@ function form() {
   </div>`;
 }
 
-const loadDraft = () => { draft = Object.fromEntries(mine(me).map(r => [r.eventId, { ...r }])); };
+const loadDraft = () => { draft = Object.fromEntries(mine(me).map(r => [r.eventId, { ...r, roles: (r.roles || '').split(',').filter(Boolean) }])); };
 const setD = (id, k, v) => { draft[id] = { ...draft[id], [k]: v }; renderArea(); };
 
 async function save() {
   const answers = practices().map(ev => ({ eventId: ev.id, ...draft[ev.id] }));
-  const bad = answers.find(a => !a.attend || (a.attend === 'N' && (!a.reason?.trim() || !a.sundayOk)));
+  const noRole = a => a.attend === 'Y' && posList(me).length > 1 && !a.roles?.length;
+  const bad = answers.find(a => !a.attend || noRole(a) || (a.attend === 'N' && (!a.reason?.trim() || !a.sundayOk)));
   if (bad) {
     const el = $(`[data-ev="${CSS.escape(bad.eventId)}"]`);
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 280, iterations: 2 });
-    return toast(bad.attend ? '불참 사유와 주일 예배 참석 여부를 알려주세요.' : '참석 여부를 선택하지 않은 연습이 있어요.', 'err');
+    return toast(noRole(bad) ? '참석할 역할을 선택해주세요.' : bad.attend ? '불참 사유와 주일 예배 참석 여부를 알려주세요.' : '참석 여부를 선택하지 않은 연습이 있어요.', 'err');
   }
   const r = await post({ action: 'respond', month: M(), name: me, answers: answers.map(a => ({ ...a, reason: a.reason?.trim() })), note: $('#note')?.value || '' });
   D = r.data;
@@ -178,6 +183,7 @@ document.addEventListener('click', e => {
   if (b.dataset.who) { me = b.dataset.who; editing = false; loadDraft(); render(); $('#area').scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.a) setD(b.dataset.a, 'attend', b.dataset.v);
   else if (b.dataset.s) setD(b.dataset.s, 'sundayOk', b.dataset.v);
+  else if (b.dataset.role) { const cur = draft[b.dataset.role]?.roles || [], v = b.dataset.v; setD(b.dataset.role, 'roles', cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v]); }
   else if (b.dataset.tag) setD(b.dataset.tag, 'reason', b.dataset.v);
   else if (b.id === 'edit') { editing = true; loadDraft(); renderArea(); }
   else if (b.id === 'cancel') { editing = false; renderArea(); }

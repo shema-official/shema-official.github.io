@@ -10,8 +10,8 @@ const HEAD = {
   Members: ['name', 'positions', 'active'],
   Months: ['month', 'open'],
   Events: ['id', 'date', 'kind', 'label', 'time', 'off'],
-  Responses: ['eventId', 'name', 'attend', 'reason', 'sundayOk', 'updatedAt'],
-  Requests: ['id', 'eventId', 'name', 'attend', 'reason', 'sundayOk', 'note', 'status', 'createdAt'],
+  Responses: ['eventId', 'name', 'attend', 'reason', 'sundayOk', 'updatedAt', 'roles'],
+  Requests: ['id', 'eventId', 'name', 'attend', 'reason', 'sundayOk', 'note', 'status', 'createdAt', 'roles'],
 };
 
 const SHEET_ID = '1oG1DYLqrUcUE8iKm4xuEINE91TxRow7gL_qPYituZxA'; // 구글 시트 URL의 /d/ 와 /edit 사이 값
@@ -37,6 +37,7 @@ function read_(n) {
 // ponytail: 탭 전체를 다시 쓴다. 팀 규모(수십 명 × 월 5~6회)에서는 충분하고, 수천 행을 넘으면 행 단위 수정으로 바꾼다.
 function write_(n, objs) {
   const s = sheet_(n);
+  s.getRange(1, 1, 1, HEAD[n].length).setValues([HEAD[n]]); // 열이 추가된 기존 탭도 머리글을 맞춘다
   if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, HEAD[n].length).clearContent();
   if (!objs.length) return;
   const cell = v => String(v ?? '').replace(/^=/, "'="); // 수식 주입 방지
@@ -61,11 +62,17 @@ function isOpen_(month) {
   return read_('Months').some(m => m.month === month && m.open === 'TRUE');
 }
 
-// 응답 한 건을 검증해서 저장용 행으로 만든다.
-function answer_(a, name) {
+// 응답 한 건을 검증해서 저장용 행으로 만든다. mine 은 그 멤버의 포지션 목록.
+function answer_(a, name, mine) {
   if (a.attend !== 'Y' && a.attend !== 'N') throw new Error('참석 여부를 선택하세요.');
   const no = a.attend === 'N';
+  let roles = no ? [] : [].concat(a.roles || []).filter(p => mine.includes(p));
+  if (!no && !roles.length) {
+    if (mine.length > 1) throw new Error('참석할 역할을 선택하세요.');
+    roles = mine;
+  }
   return {
+    roles: roles.join(','),
     eventId: String(a.eventId),
     name,
     attend: a.attend,
@@ -129,11 +136,13 @@ const ACTIONS = {
   // 조사가 열려 있으면 바로 반영하고, 마감됐으면 변경된 항목만 수정 요청으로 쌓는다.
   respond(b) {
     const month = month_(b.month);
-    if (!read_('Members').some(m => m.name === b.name && m.active === 'TRUE')) throw new Error('등록되지 않은 이름입니다.');
+    const member = read_('Members').find(m => m.name === b.name && m.active === 'TRUE');
+    if (!member) throw new Error('등록되지 않은 이름입니다.');
+    const mine = member.positions.split(',').filter(Boolean);
     const open = new Set(read_('Events').filter(ev => ev.date.startsWith(month) && ev.off !== 'TRUE').map(ev => ev.id));
     const rows = (b.answers || []).map(a => {
       if (!open.has(a.eventId)) throw new Error('없는 일정입니다. 새로고침 후 다시 시도하세요.');
-      return answer_(a, b.name);
+      return answer_(a, b.name, mine);
     });
     const now = new Date().toISOString();
 
@@ -145,7 +154,7 @@ const ACTIONS = {
     }
 
     const cur = read_('Responses');
-    const same = (r, c) => c && c.attend === r.attend && c.reason === r.reason && c.sundayOk === r.sundayOk;
+    const same = (r, c) => c && c.attend === r.attend && c.reason === r.reason && c.sundayOk === r.sundayOk && (c.roles || '') === r.roles;
     const changed = rows.filter(r => !same(r, cur.find(c => c.eventId === r.eventId && c.name === r.name)));
     if (!changed.length) throw new Error('변경된 내용이 없습니다.');
     // 같은 일정에 대기 중인 이전 요청은 새 요청으로 대체한다.
@@ -171,7 +180,7 @@ const ACTIONS = {
     reqs.forEach(q => {
       if (!ids.has(q.id) || q.status !== 'pending') return;
       q.status = b.approve ? 'approved' : 'rejected';
-      if (b.approve) upsert_(all, { eventId: q.eventId, name: q.name, attend: q.attend, reason: q.reason, sundayOk: q.sundayOk, updatedAt: now });
+      if (b.approve) upsert_(all, { eventId: q.eventId, name: q.name, attend: q.attend, reason: q.reason, sundayOk: q.sundayOk, roles: q.roles, updatedAt: now });
     });
     write_('Requests', reqs);
     if (b.approve) write_('Responses', all);

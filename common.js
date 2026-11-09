@@ -35,7 +35,7 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const fmt = d => { const t = new Date(d + 'T00:00'); return `${t.getMonth() + 1}/${t.getDate()} (${'일월화수목금토'[t.getDay()]})`; };
 const evName = ev => `${fmt(ev.date)} ${ev.label}${ev.time ? ' ' + ev.time : ''}`;
-const ansText = r => r.attend === 'Y' ? '참석' : `불참(${r.reason || '-'}, 주일 ${r.sundayOk === 'Y' ? '가능' : '불가'})`;
+const ansText = r => r.attend === 'Y' ? `참석${r.roles ? `(${r.roles.split(',').join('·')})` : ''}` : `불참(${r.reason || '-'}, 주일 ${r.sundayOk === 'Y' ? '가능' : '불가'})`;
 const icons = () => window.lucide?.createIcons();
 const SKELETON = '<div class="card h-24 mb-4 animate-pulse bg-slate-100 border-none"></div>'.repeat(3);
 
