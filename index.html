@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>찬양팀 연습 참여 조사</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>찬양팀 연습 참여 조사</h1>
+    <input type="month" id="month" aria-label="조사 월">
+  </header>
+  <div id="app">불러오는 중…</div>
+</main>
+<script src="common.js"></script>
+<script>
+let D, me = '';
+
+async function load() {
+  $('#app').textContent = '불러오는 중…';
+  try { D = await get($('#month').value); render(); }
+  catch (e) { $('#app').textContent = '불러오기 실패: ' + e.message; }
+}
+
+function render() {
+  const names = D.members.filter(m => m.active === 'TRUE').map(m => m.name);
+  $('#app').innerHTML = `
+    <p class="banner ${D.open ? '' : 'closed'}">${D.open
+      ? '조사 진행 중입니다. 저장하면 바로 반영됩니다.'
+      : '조사가 마감되었습니다. 응답을 바꾸면 <b>수정 요청</b>으로 전달되고, 관리자가 승인하면 반영됩니다.'}</p>
+    <section><label>이름 <select id="who"><option value="">선택하세요</option>
+      ${names.map(n => `<option ${n === me ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></section>
+    <div id="form"></div>`;
+  $('#who').onchange = e => { me = e.target.value; renderForm(); };
+  renderForm();
+}
+
+function card(ev, r) {
+  const id = esc(ev.id);
+  const radio = (name, value, label, cur) =>
+    `<label><input type="radio" name="${name}-${id}" value="${value}" ${cur === value ? 'checked' : ''}>${label}</label>`;
+  return `<section class="ev" data-id="${id}">
+    <b>${esc(evName(ev))}</b>
+    <div class="seg">${radio('a', 'Y', '참석', r.attend)}${radio('a', 'N', '불참', r.attend)}</div>
+    <div class="absent">
+      <input class="reason" placeholder="불참 사유" maxlength="200" value="${esc(r.reason)}">
+      <div class="seg">주일 예배 참석 ${radio('s', 'Y', '가능', r.sundayOk)}${radio('s', 'N', '불가', r.sundayOk)}</div>
+    </div>
+  </section>`;
+}
+
+function renderForm() {
+  if (!me) return $('#form').innerHTML = '';
+  if (!D.events.length) return $('#form').innerHTML = '<section>아직 이 달의 연습 일정이 없습니다.</section>';
+  const mine = Object.fromEntries(D.responses.filter(r => r.name === me).map(r => [r.eventId, r]));
+  const pending = D.requests.filter(q => q.name === me && q.status === 'pending');
+  const evById = Object.fromEntries(D.events.map(e => [e.id, e]));
+  $('#form').innerHTML =
+    (pending.length ? `<section><h2>승인 대기 중인 수정 요청</h2>${pending.map(q =>
+      `<div>${esc(evName(evById[q.eventId]))} → ${esc(ansText(q))}</div>`).join('')}</section>` : '') +
+    D.events.map(ev => ev.off === 'TRUE'
+      ? `<section class="off"><b>${esc(evName(ev))}</b> · 연습 없음</section>`
+      : card(ev, mine[ev.id] || {})).join('') +
+    (D.open ? '' : '<section><input id="note" placeholder="수정 사유 (관리자에게 전달)" maxlength="200" style="width:100%"></section>') +
+    `<button id="save" class="primary">${D.open ? '저장' : '수정 요청 보내기'}</button>`;
+  $('#save').onclick = e => run(e.target, save);
+}
+
+async function save() {
+  const answers = [...document.querySelectorAll('.ev')].map(s => ({
+    eventId: s.dataset.id,
+    attend: s.querySelector('[name^="a-"]:checked')?.value,
+    reason: s.querySelector('.reason').value.trim(),
+    sundayOk: s.querySelector('[name^="s-"]:checked')?.value,
+  }));
+  if (answers.some(a => !a.attend || (a.attend === 'N' && (!a.reason || !a.sundayOk))))
+    return alert('모든 연습에 응답하고, 불참이면 사유와 주일 예배 참석 여부를 선택해 주세요.');
+  const r = await post({ action: 'respond', month: $('#month').value, name: me, answers, note: $('#note')?.value || '' });
+  alert(r.mode === 'saved' ? '저장했습니다.' : `수정 요청 ${r.count}건을 보냈습니다. 관리자 승인 후 반영됩니다.`);
+  D = await get($('#month').value);
+  render();
+}
+
+$('#month').value = nextMonth();
+$('#month').onchange = load;
+load();
+</script>
+</body>
+</html>
