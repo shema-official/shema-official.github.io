@@ -5,123 +5,189 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>찬양팀 연습 참여 조사</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<main>
-  <header>
-    <h1><span class="logo">♪</span>찬양팀 연습 참여 조사</h1>
-    <input type="month" id="month" aria-label="조사 월">
-  </header>
-  <div id="app">불러오는 중…</div>
-</main>
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
 <script src="common.js"></script>
+</head>
+<body class="selection:bg-brand-100 selection:text-brand-700">
+<main class="max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+  <div id="app" class="space-y-6"></div>
+</main>
 <script>
-let D, me = '';
-const SKELETON = '<div class="skeleton"></div>'.repeat(3);
+header('이름을 고르고 이번 달 연습 참석 여부를 알려주세요');
+let D, me = '', editing = false, draft = {};
+const REASONS = ['개인 일정', '시험/학업', '가족 행사', '회사/야근', '건강/병원'];
+const M = () => $('#month').value;
+const practices = () => D.events.filter(e => e.off !== 'TRUE');
+const mine = name => D.responses.filter(r => r.name === name);
+const answered = name => practices().every(ev => mine(name).some(r => r.eventId === ev.id));
+const posText = name => (D.members.find(m => m.name === name)?.positions || '').split(',').filter(Boolean).join(' · ');
 
 async function load() {
   $('#app').innerHTML = SKELETON;
-  try { D = await get($('#month').value); render(); }
-  catch (e) { $('#app').innerHTML = `<section class="empty">불러오지 못했습니다: ${esc(e.message)}</section>`; }
+  try { D = await get(M()); editing = false; render(); }
+  catch (e) { $('#app').innerHTML = `<div class="card p-8 text-center text-sm text-slate-500">불러오지 못했습니다: ${esc(e.message)}</div>`; }
 }
 
 function render() {
-  const names = D.members.filter(m => m.active === 'TRUE').map(m => m.name);
+  const ms = D.members.filter(m => m.active === 'TRUE');
+  const mon = +M().slice(5);
   $('#app').innerHTML = `
-    <p class="banner ${D.open ? '' : 'closed'}"><span>${D.open
-      ? '조사 진행 중입니다. 저장하면 바로 반영됩니다.'
-      : '조사가 마감되었습니다. 응답을 바꾸면 <b>수정 요청</b>으로 전달되고, 관리자가 승인하면 반영됩니다.'}</span></p>
-    <section><label class="who">누구신가요?<select id="who"><option value="">이름을 선택하세요</option>
-      ${names.map(n => `<option ${n === me ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></section>
-    <div id="form"></div>`;
-  $('#who').onchange = e => { me = e.target.value; renderForm(); };
-  renderForm();
+    <div class="fade-in rounded-2xl p-4 sm:p-5 border flex items-start gap-3.5 ${D.open ? 'bg-gradient-to-r from-brand-50/90 to-violet-50/90 border-brand-200/80' : 'bg-amber-50/90 border-amber-200'}">
+      <div class="w-9 h-9 rounded-xl ${D.open ? 'bg-brand-600' : 'bg-amber-500'} text-white flex items-center justify-center shrink-0"><i data-lucide="${D.open ? 'sparkles' : 'lock'}" class="w-5 h-5"></i></div>
+      <div><span class="text-xs font-bold px-2 py-0.5 rounded-md border bg-white/80 ${D.open ? 'text-brand-700 border-brand-200' : 'text-amber-800 border-amber-300'}">${mon}월 연습 조사 ${D.open ? '진행 중' : '마감'}</span>
+        <p class="text-xs sm:text-sm font-medium mt-1.5 leading-relaxed ${D.open ? 'text-slate-700' : 'text-amber-900'}">${D.open
+          ? '이름을 고르고 토요일 연습 참석 여부를 알려주세요. 불참이면 사유와 <strong>다음날 주일 예배 참석 가능 여부</strong>도 함께 적어주세요.'
+          : '응답을 바꾸면 <strong>관리자에게 수정 요청</strong>으로 전달되고, 승인되면 연습표에 반영됩니다.'}</p></div>
+    </div>
+
+    <div class="card p-5 sm:p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <div><span class="eyebrow text-brand-600">Step 1</span><h2 class="text-lg font-bold mt-0.5">본인의 이름을 선택해주세요</h2></div>
+        <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">${ms.filter(m => answered(m.name)).length}/${ms.length}명 응답</span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">${ms.map(m => {
+        const on = m.name === me, ok = answered(m.name);
+        return `<button data-who="${esc(m.name)}" class="text-left p-3 rounded-xl border transition-all flex items-center justify-between gap-1 ${on
+          ? 'bg-brand-50/80 border-brand-600 ring-2 ring-brand-500/20' : 'bg-slate-50/60 hover:bg-white border-slate-200/80 hover:border-slate-300'}">
+          <div class="min-w-0"><div class="font-bold text-sm truncate ${on ? 'text-brand-700' : 'text-slate-800'}">${esc(m.name)}</div>
+            <div class="text-[11px] text-slate-500 truncate mt-0.5">${esc(posText(m.name)) || '&nbsp;'}</div></div>
+          <span class="shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${ok ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}">${ok ? '완료' : '미응답'}</span></button>`;
+      }).join('') || '<p class="col-span-full text-sm text-slate-500">등록된 멤버가 없습니다.</p>'}</div>
+    </div>
+    <div id="area"></div>`;
+  renderArea();
 }
 
-function card(ev, r) {
-  const id = esc(ev.id);
-  const radio = (name, value, label, cur) =>
-    `<label><input type="radio" name="${name}-${id}" value="${value}" ${cur === value ? 'checked' : ''}>${label}</label>`;
-  return `<section class="ev" data-id="${id}">
-    <div class="ev-title"><b>${fmt(ev.date)}</b><span class="muted">${esc(ev.label)}${ev.time ? ' · ' + esc(ev.time) : ''}</span></div>
-    <div class="seg">${radio('a', 'Y', '참석', r.attend)}${radio('a', 'N', '불참', r.attend)}</div>
-    <div class="absent"><div>
-      <input class="reason" placeholder="불참 사유를 적어주세요" maxlength="200" value="${esc(r.reason)}">
-      <p class="q">다음날 주일 예배는 참석할 수 있나요?</p>
-      <div class="seg sub">${radio('s', 'Y', '가능', r.sundayOk)}${radio('s', 'N', '불가', r.sundayOk)}</div>
-    </div></div>
-  </section>`;
+function renderArea() {
+  const area = $('#area');
+  if (!me) { area.innerHTML = ''; return icons(); }
+  if (!D.events.length) { area.innerHTML = '<div class="card p-8 text-center text-sm text-slate-500">아직 이 달의 연습 일정이 없습니다.</div>'; return icons(); }
+  area.innerHTML = mine(me).length && !editing ? summary() : form();
+  icons();
 }
 
-function renderForm() {
-  if (!me) return $('#form').innerHTML = '';
-  const open = D.events.filter(e => e.off !== 'TRUE');
-  if (!D.events.length) return $('#form').innerHTML = '<section class="empty">아직 이 달의 연습 일정이 없습니다.</section>';
-  const mine = Object.fromEntries(D.responses.filter(r => r.name === me).map(r => [r.eventId, r]));
-  const pending = D.requests.filter(q => q.name === me && q.status === 'pending');
+const pendingBox = () => {
   const evById = Object.fromEntries(D.events.map(e => [e.id, e]));
-  $('#form').innerHTML =
-    (pending.length ? `<section class="pending-req"><h2>승인 대기 중인 수정 요청</h2>${pending.map(q =>
-      `<div>${esc(evName(evById[q.eventId]))} → ${esc(ansText(q))}</div>`).join('')}</section>` : '') +
-    `<section><div class="head"><h2>${+$('#month').value.slice(5)}월 연습</h2><span class="muted" id="cnt"></span></div>
-      <div class="progress"><i id="prog"></i></div></section>` +
-    D.events.map(ev => ev.off === 'TRUE'
-      ? `<section class="off"><b>${fmt(ev.date)}</b><span>연습 없음</span></section>`
-      : card(ev, mine[ev.id] || {})).join('') +
-    (D.open ? '' : '<section><input id="note" placeholder="수정 사유 (관리자에게 전달)" maxlength="200" style="width:100%"></section>') +
-    `<button id="save" class="primary cta">${D.open ? '응답 제출하기' : '수정 요청 보내기'}</button>`;
-  // 응답한 연습 수를 진행 바로 보여준다.
-  const tick = () => {
-    const n = document.querySelectorAll('.ev:has(input[name^="a-"]:checked)').length;
-    $('#cnt').textContent = `${n} / ${open.length} 응답`;
-    $('#prog').style.width = `${open.length ? n / open.length * 100 : 0}%`;
-  };
-  $('#form').onchange = tick;
-  tick();
-  $('#save').onclick = e => run(e.target, save, D.open ? '제출 중…' : '요청 보내는 중…');
+  const qs = D.requests.filter(q => q.name === me && q.status === 'pending' && evById[q.eventId]);
+  return qs.length ? `<div class="mb-5 p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5">
+    <i data-lucide="clock" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
+    <div><span class="text-xs font-bold text-rose-800">관리자 승인을 기다리는 수정 요청</span>
+      ${qs.map(q => `<p class="text-xs text-rose-700 mt-1">${esc(fmt(evById[q.eventId].date))} → ${esc(ansText(q))}</p>`).join('')}</div></div>` : '';
+};
+
+function summary(fresh) {
+  const byEv = Object.fromEntries(mine(me).map(r => [r.eventId, r]));
+  return `<div class="card p-5 sm:p-6 fade-in">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 mb-5 border-b border-slate-100">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 ${fresh ? 'pop' : ''}"><i data-lucide="check-check" class="w-6 h-6"></i></div>
+        <div><h3 class="text-lg font-bold">${esc(me)}님의 ${+M().slice(5)}월 응답이 제출되었습니다</h3>
+          <p class="text-xs text-slate-500 mt-0.5">${D.open ? '조사 기간 안에는 언제든 다시 수정할 수 있어요.' : '마감 후 변경은 수정 요청으로 전달됩니다.'}</p></div>
+      </div>
+      <button id="edit" class="btn self-start sm:self-auto"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i>${D.open ? '다시 수정하기' : '수정 요청 보내기'}</button>
+    </div>
+    ${pendingBox()}
+    <div class="space-y-2.5">${D.events.map((ev, i) => {
+      if (ev.off === 'TRUE') return `<div class="p-4 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-between opacity-75">
+        <span class="text-sm font-semibold text-slate-600">${fmt(ev.date)} · ${esc(ev.label)}</span><span class="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-200 text-slate-600">연습 없음</span></div>`;
+      const r = byEv[ev.id], y = r?.attend === 'Y';
+      return `<div class="fade-in p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${!r || y ? 'bg-white border-slate-200/80' : 'border-rose-200 bg-rose-50/30'}" style="animation-delay:${i * 40}ms">
+        <div><div class="flex items-center gap-2 flex-wrap"><span class="text-sm font-bold">${fmt(ev.date)}</span><span class="text-xs text-slate-500">${esc(ev.time)}</span>
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-md ${ev.kind === '추가' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600'}">${esc(ev.label)}</span></div>
+          ${r && !y ? `<div class="mt-2 flex flex-wrap items-center gap-2 text-xs"><span class="text-rose-700 font-medium">사유: ${esc(r.reason)}</span><span class="text-slate-300">|</span>
+            <span class="font-semibold ${r.sundayOk === 'Y' ? 'text-emerald-700' : 'text-rose-600'}">주일 예배 ${r.sundayOk === 'Y' ? '참석 가능' : '불가'}</span></div>` : ''}</div>
+        ${!r ? '<span class="self-start sm:self-center px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">미응답</span>'
+          : y ? '<span class="self-start sm:self-center inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>연습 참석</span>'
+          : '<span class="self-start sm:self-center inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i>연습 불참</span>'}
+      </div>`;
+    }).join('')}</div></div>`;
 }
+
+const choice = (attr, on, color, label, icon = '') => `<button type="button" ${attr} class="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold border transition-all flex items-center justify-center gap-1.5 ${on
+  ? `bg-${color}-600 text-white border-${color}-600 shadow-sm shadow-${color}-500/20` : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}">${icon ? `<i data-lucide="${icon}" class="w-4 h-4"></i>` : ''}${label}</button>`;
+
+function form() {
+  const n = practices().filter(ev => draft[ev.id]?.attend).length;
+  return `<div class="space-y-4 fade-in">
+    <div class="flex items-end justify-between px-1">
+      <div><span class="eyebrow text-brand-600">Step 2</span><h3 class="text-lg font-bold">${esc(me)}님의 ${+M().slice(5)}월 연습 일정</h3></div>
+      ${mine(me).length ? '<button id="cancel" class="text-xs font-semibold text-slate-500 hover:text-slate-800 underline">수정 취소</button>' : ''}
+    </div>
+    ${pendingBox()}
+    <div class="card p-4"><div class="flex justify-between text-xs font-bold mb-2"><span class="text-slate-500">응답 진행</span><span class="text-brand-600">${n} / ${practices().length}</span></div>
+      <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full transition-all duration-500" style="width:${practices().length ? n / practices().length * 100 : 0}%"></div></div></div>
+    <div class="space-y-3">${D.events.map(ev => {
+      if (ev.off === 'TRUE') return `<div class="bg-slate-100/80 rounded-2xl border border-slate-200/80 p-5 flex items-center justify-between opacity-75">
+        <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-xs">휴무</div>
+          <div><span class="font-bold text-slate-700">${fmt(ev.date)}</span> <span class="text-xs px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 font-semibold">연습 없음</span></div></div>
+        <span class="text-xs font-semibold text-slate-400">응답 불필요</span></div>`;
+      const d = draft[ev.id] || {}, no = d.attend === 'N', id = esc(ev.id);
+      return `<div data-ev="${id}" class="bg-white rounded-2xl border p-5 transition-all ${no ? 'border-rose-300 ring-2 ring-rose-500/10' : d.attend ? 'border-emerald-200' : 'border-slate-200/90'}">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div><div class="flex items-center gap-2"><span class="px-2.5 py-0.5 rounded-md text-xs font-bold border ${ev.kind === '추가' ? 'bg-violet-100 text-violet-700 border-violet-200' : 'bg-brand-50 text-brand-700 border-brand-200/60'}">${ev.kind === '추가' ? '추가 연습' : '정기 연습'}</span>
+            ${ev.time ? `<span class="text-xs font-semibold text-slate-500 flex items-center gap-1"><i data-lucide="clock" class="w-3.5 h-3.5"></i>${esc(ev.time)}</span>` : ''}</div>
+            <h4 class="text-base sm:text-lg font-bold mt-1.5">${fmt(ev.date)} · ${esc(ev.label)}</h4></div>
+          <div class="grid grid-cols-2 sm:flex gap-2 shrink-0">${choice(`data-a="${id}" data-v="Y"`, d.attend === 'Y', 'emerald', '참석', 'check')}${choice(`data-a="${id}" data-v="N"`, no, 'rose', '불참', 'x')}</div>
+        </div>
+        ${no ? `<div class="mt-4 pt-4 border-t border-rose-100 space-y-4 fade-in">
+          <div><label class="block text-xs font-bold text-slate-700 mb-1.5">1. 토요일 연습 불참 사유 <span class="text-rose-500">*</span></label>
+            <input data-r="${id}" value="${esc(d.reason)}" maxlength="200" placeholder="직접 입력하거나 아래 태그를 고르세요" class="inp bg-rose-50/40 border-rose-200 focus:ring-rose-500">
+            <div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[11px] text-slate-400 mr-1">빠른 선택</span>${REASONS.map(t =>
+              `<button type="button" data-tag="${id}" data-v="${t}" class="text-[11px] font-semibold px-2.5 py-1 rounded-lg border transition-all ${d.reason === t ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300'}">${t}</button>`).join('')}</div></div>
+          <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="sun" class="w-4 h-4 text-amber-500"></i>2. 다음날 주일 예배는 참석할 수 있나요? <span class="text-rose-500">*</span></span>
+            <div class="grid grid-cols-2 sm:flex gap-1.5 shrink-0">${choice(`data-s="${id}" data-v="Y"`, d.sundayOk === 'Y', 'emerald', '참석 가능')}${choice(`data-s="${id}" data-v="N"`, d.sundayOk === 'N', 'rose', '불가')}</div>
+          </div></div>` : ''}
+      </div>`;
+    }).join('')}</div>
+    <div class="sticky bottom-4 z-20 pt-2">
+      <div class="bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-xl border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        ${D.open ? `<div class="text-xs"><span class="font-bold text-brand-200">${esc(me)}님으로 응답 중</span><p class="text-slate-300 mt-0.5">마감 전까지는 언제든 다시 수정할 수 있습니다.</p></div>`
+          : '<input id="note" maxlength="200" placeholder="수정 사유 (관리자에게 전달)" class="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-3.5 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500">'}
+        <button id="save" class="w-full sm:w-auto px-6 py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-brand-500 to-violet-500 hover:from-brand-600 hover:to-violet-600 shadow-md transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-60">
+          <i data-lucide="send" class="w-4 h-4"></i>${D.open ? '응답 제출하기' : '수정 요청 보내기'}</button>
+      </div></div>
+  </div>`;
+}
+
+const loadDraft = () => { draft = Object.fromEntries(mine(me).map(r => [r.eventId, { ...r }])); };
+const setD = (id, k, v) => { draft[id] = { ...draft[id], [k]: v }; renderArea(); };
 
 async function save() {
-  const cards = [...document.querySelectorAll('.ev')];
-  const answers = cards.map(s => ({
-    eventId: s.dataset.id,
-    attend: s.querySelector('[name^="a-"]:checked')?.value,
-    reason: s.querySelector('.reason').value.trim(),
-    sundayOk: s.querySelector('[name^="s-"]:checked')?.value,
-  }));
-  // 빠진 항목이 있으면 그 카드로 스크롤하고 흔들어서 알려준다.
-  const bad = cards.find((s, i) => !answers[i].attend || (answers[i].attend === 'N' && (!answers[i].reason || !answers[i].sundayOk)));
+  const answers = practices().map(ev => ({ eventId: ev.id, ...draft[ev.id] }));
+  const bad = answers.find(a => !a.attend || (a.attend === 'N' && (!a.reason?.trim() || !a.sundayOk)));
   if (bad) {
-    bad.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    bad.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 280, iterations: 2 });
-    return;
+    const el = $(`[data-ev="${CSS.escape(bad.eventId)}"]`);
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 280, iterations: 2 });
+    return toast(bad.attend ? '불참 사유와 주일 예배 참석 여부를 알려주세요.' : '참석 여부를 선택하지 않은 연습이 있어요.', 'err');
   }
-  const r = await post({ action: 'respond', month: $('#month').value, name: me, answers, note: $('#note')?.value || '' });
+  const r = await post({ action: 'respond', month: M(), name: me, answers: answers.map(a => ({ ...a, reason: a.reason?.trim() })), note: $('#note')?.value || '' });
   D = r.data;
-  done(r);
+  editing = false;
+  render();
+  $('#area').innerHTML = summary(true);
+  $('#area').scrollIntoView({ behavior: 'smooth' });
+  toast(r.mode === 'saved' ? '응답이 제출되었습니다. 감사합니다!' : `수정 요청 ${r.count}건을 보냈습니다.`, 'ok');
 }
 
-function done(r) {
-  const evById = Object.fromEntries(D.events.map(e => [e.id, e]));
-  const list = r.mode === 'saved'
-    ? D.responses.filter(x => x.name === me)
-    : D.requests.filter(q => q.name === me && q.status === 'pending');
-  window.scrollTo({ top: 0 });
-  $('#app').innerHTML = `<section class="done">
-    <div class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
-    <h2>${r.mode === 'saved' ? '응답이 제출되었습니다' : `수정 요청 ${r.count}건을 보냈습니다`}</h2>
-    <p class="muted">${r.mode === 'saved' ? `${esc(me)} 님, 감사합니다! 조사 기간 안에는 언제든 수정할 수 있어요.` : '관리자가 승인하면 반영됩니다.'}</p>
-  </section>
-  <section class="summary"><h2>${r.mode === 'saved' ? '제출한 응답' : '보낸 요청'}</h2>
-    ${list.filter(x => evById[x.eventId]).sort((a, b) => evById[a.eventId].date.localeCompare(evById[b.eventId].date))
-      .map(x => `<div><span>${esc(evName(evById[x.eventId]))}</span><span class="pill ${x.attend === 'Y' ? 'y' : 'n'}">${esc(ansText(x))}</span></div>`).join('')}</section>
-  <button id="again" class="cta">응답 수정하기</button>`;
-  $('#again').onclick = () => { render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-}
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.who) { me = b.dataset.who; editing = false; loadDraft(); render(); $('#area').scrollIntoView({ behavior: 'smooth' }); }
+  else if (b.dataset.a) setD(b.dataset.a, 'attend', b.dataset.v);
+  else if (b.dataset.s) setD(b.dataset.s, 'sundayOk', b.dataset.v);
+  else if (b.dataset.tag) setD(b.dataset.tag, 'reason', b.dataset.v);
+  else if (b.id === 'edit') { editing = true; loadDraft(); renderArea(); }
+  else if (b.id === 'cancel') { editing = false; renderArea(); }
+  else if (b.id === 'save') run(b, save, D.open ? '제출 중…' : '요청 보내는 중…');
+});
+document.addEventListener('input', e => { const id = e.target.dataset.r; if (id) draft[id] = { ...draft[id], reason: e.target.value }; });
 
 $('#month').value = nextMonth();
 $('#month').onchange = load;
+icons();
 load();
 </script>
 </body>

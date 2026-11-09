@@ -5,219 +5,313 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>찬양팀 조사 관리자</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="style.css">
+<script src="https://cdn.tailwindcss.com/3.4.16"></script>
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="common.js"></script>
 </head>
-<body>
-<main>
-  <header>
-    <h1><span class="logo">♪</span>찬양팀 조사 <em>관리자</em></h1>
-    <input type="month" id="month" aria-label="관리 월">
-  </header>
+<body class="selection:bg-brand-100 selection:text-brand-700">
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
   <div id="app"></div>
 </main>
-<script src="common.js"></script>
 <script>
+header('관리자 · 일정, 팀 구성, 연습표 관리');
 let D, pw = '', tab = 'home';
-const showTab = k => {
-  tab = k;
-  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
-  document.querySelectorAll('[data-pane]').forEach(p => p.classList.toggle('on', p.dataset.pane === k));
-};
 try { pw = sessionStorage.getItem('pw') || ''; } catch {}
 const M = () => $('#month').value;
 // 등록된 포지션만 인정한다(등록 순서 유지).
 const posOf = m => { const mine = (m?.positions || '').split(','); return D.positions.map(p => p.name).filter(n => mine.includes(n)); };
+const TABS = [['home', '현황', 'activity'], ['sched', '일정', 'calendar-days'], ['team', '팀 구성', 'users'], ['table', '표 만들기', 'table-2']];
 
 async function load() {
   if (!pw) return renderLogin();
-  $('#app').innerHTML = '<div class="skeleton"></div>'.repeat(3);
+  $('#app').innerHTML = SKELETON;
   try { D = await get(M()); render(); }
-  catch (e) { $('#app').textContent = '불러오기 실패: ' + e.message; }
+  catch (e) { $('#app').innerHTML = `<div class="card p-8 text-center text-sm text-slate-500">불러오기 실패: ${esc(e.message)}</div>`; }
 }
 
 function renderLogin() {
-  $('#app').innerHTML = `<section class="done"><div class="check"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0110 0v3M6 11h12v9H6z"/></svg></div>
-    <h2>관리자 로그인</h2><p class="muted">관리자 비밀번호를 입력하세요.</p>
-    <div class="row" style="justify-content:center"><input type="password" id="pw" placeholder="비밀번호"><button id="login" class="primary">로그인</button></div></section>`;
-  $('#login').onclick = e => run(e.target, async () => {
-    await post({ action: 'auth', pw: $('#pw').value });
-    pw = $('#pw').value;
-    try { sessionStorage.setItem('pw', pw); } catch {}
-    load();
-  }, '확인 중…');
+  $('#app').innerHTML = `<div class="card max-w-sm mx-auto mt-10 p-8 text-center fade-in">
+    <div class="w-14 h-14 mx-auto rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center pop"><i data-lucide="lock" class="w-7 h-7"></i></div>
+    <h2 class="text-xl font-bold mt-4">관리자 로그인</h2><p class="text-sm text-slate-500 mt-1">관리자 비밀번호를 입력하세요.</p>
+    <form id="loginForm" class="mt-6 space-y-3"><input type="password" id="pw" placeholder="비밀번호" class="inp" autofocus>
+      <button class="btn btn-primary w-full">로그인</button></form></div>`;
+  icons();
+  $('#loginForm').onsubmit = e => {
+    e.preventDefault();
+    run(e.submitter, async () => {
+      await post({ action: 'auth', pw: $('#pw').value });
+      pw = $('#pw').value;
+      try { sessionStorage.setItem('pw', pw); } catch {}
+      load();
+    }, '확인 중…');
+  };
 }
 
-// 저장 후 다시 불러와 화면을 갱신한다.
-const act = (btn, body) => run(btn, async () => { D = (await post({ pw, month: M(), ...body })).data; render(); });
+// 저장 응답에 실려 온 최신 데이터로 화면을 갱신한다.
+const act = (btn, body, msg = '저장했습니다.') => run(btn, async () => { D = (await post({ pw, month: M(), ...body })).data; render(); toast(msg, 'ok'); });
 
-const evRow = ev => `<tr data-id="${esc(ev.id)}" data-kind="${esc(ev.kind)}">
-  <td><input type="date" value="${esc(ev.date)}"></td>
-  <td><input value="${esc(ev.label)}" placeholder="이름"></td>
-  <td><input type="time" value="${esc(ev.time)}"></td>
-  <td><label class="switch"><input type="checkbox" ${ev.off === 'TRUE' ? 'checked' : ''}><i></i>연습 없음</label></td>
-  <td><button class="del icon" title="삭제" aria-label="삭제">✕</button></td></tr>`;
+const del = '<button class="del p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-all" title="삭제" aria-label="삭제"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button>';
+const sw = (on, label) => `<label class="sw text-xs font-semibold text-slate-600"><input type="checkbox" ${on ? 'checked' : ''}><i></i>${label}</label>`;
+const small = 'bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white';
 
-const posRow = p => `<tr>
-  <td><input value="${esc(p.name)}" placeholder="포지션 이름 (예: 메인보컬)"></td>
-  <td><input value="${esc(p.kind)}" placeholder="종류 (예: 보컬, 세션)" list="kinds"></td>
-  <td><button class="del icon" title="삭제" aria-label="삭제">✕</button></td></tr>`;
+const evRow = ev => `<div data-id="${esc(ev.id)}" data-kind="${esc(ev.kind)}" class="ev p-3 sm:p-4 rounded-xl border bg-white border-slate-200 flex flex-col sm:flex-row sm:items-center gap-3 fade-in has-[.sw_:checked]:bg-slate-50 has-[.sw_:checked]:opacity-70">
+  <span class="w-12 shrink-0 text-center text-[11px] font-bold px-2 py-1 rounded-md ${ev.kind === '추가' ? 'bg-violet-100 text-violet-700' : 'bg-brand-50 text-brand-700'}">${ev.kind === '추가' ? '추가' : '정기'}</span>
+  <div class="grid grid-cols-[1fr_1fr] sm:grid-cols-[150px_1fr_120px] gap-2 flex-1">
+    <input type="date" value="${esc(ev.date)}" class="${small}"><input value="${esc(ev.label)}" placeholder="연습 이름" class="${small}">
+    <input value="${esc(ev.time)}" placeholder="시간 (예: 오후 4시)" class="${small} col-span-2 sm:col-span-1"></div>
+  <div class="flex items-center justify-between sm:justify-end gap-3">${sw(ev.off === 'TRUE', '연습 없음')}${del}</div></div>`;
 
-const memRow = m => `<tr>
-  <td><input value="${esc(m.name)}" placeholder="이름"></td>
-  <td><div class="chips">${D.positions.map(p => `<label><input type="checkbox" value="${esc(p.name)}" ${posOf(m).includes(p.name) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="muted">포지션을 먼저 등록하세요</span>'}</div></td>
-  <td><label class="switch"><input type="checkbox" ${m.active !== 'FALSE' ? 'checked' : ''}><i></i>활동</label></td>
-  <td><button class="del icon" title="삭제" aria-label="삭제">✕</button></td></tr>`;
+const posRow = p => `<div class="pos flex items-center gap-2 fade-in">
+  <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-300 shrink-0"></i>
+  <input value="${esc(p.name)}" placeholder="포지션 (예: 메인건반)" class="${small} flex-1 min-w-0">
+  <input value="${esc(p.kind)}" placeholder="종류 (예: 세션)" list="kinds" class="${small} w-28 sm:w-40">${del}</div>`;
+
+const memRow = m => `<div class="mem py-4 flex flex-col md:flex-row md:items-center gap-3 fade-in">
+  <div class="flex items-center gap-3 md:w-56 shrink-0">
+    <div class="w-9 h-9 shrink-0 rounded-xl bg-brand-50 text-brand-700 font-bold text-sm flex items-center justify-center">${esc(m.name.charAt(0)) || '?'}</div>
+    <input value="${esc(m.name)}" placeholder="이름" class="${small} flex-1 min-w-0 font-bold"></div>
+  <div class="flex flex-wrap gap-1.5 flex-1">${D.positions.map(p => `<label class="cursor-pointer px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all bg-white text-slate-600 border-slate-200 hover:border-slate-300 has-[:checked]:bg-brand-600 has-[:checked]:text-white has-[:checked]:border-brand-600">
+    <input type="checkbox" class="sr-only" value="${esc(p.name)}" ${posOf(m).includes(p.name) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="text-xs text-slate-400">포지션을 먼저 등록하세요</span>'}</div>
+  <div class="flex items-center justify-between md:justify-end gap-3">${sw(m.active !== 'FALSE', '활동')}${del}</div></div>`;
 
 function render() {
   const open = D.events.filter(e => e.off !== 'TRUE');
   const evById = Object.fromEntries(D.events.map(e => [e.id, e]));
-  const pending = D.requests.filter(q => q.status === 'pending');
-  const cur = (q) => D.responses.find(r => r.eventId === q.eventId && r.name === q.name);
-  const missing = D.members.filter(m => m.active === 'TRUE' &&
-    open.some(ev => !D.responses.some(r => r.eventId === ev.id && r.name === m.name)));
+  const pending = D.requests.filter(q => q.status === 'pending' && evById[q.eventId]);
+  const cur = q => D.responses.find(r => r.eventId === q.eventId && r.name === q.name);
+  const act_ = D.members.filter(m => m.active === 'TRUE');
+  const missing = act_.filter(m => open.some(ev => !D.responses.some(r => r.eventId === ev.id && r.name === m.name)));
+  const total = act_.length, done = total - missing.length, pct = total ? Math.round(done / total * 100) : 0;
+  const pill = r => r.attend === 'Y' ? `<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">참석</span>`
+    : `<span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold">불참 (${esc(r.reason)} · 주일 ${r.sundayOk === 'Y' ? '가능' : '불가'})</span>`;
 
-  const total = D.members.filter(m => m.active === 'TRUE').length;
-  const TABS = [['home', '현황'], ['sched', '일정'], ['team', '팀 구성'], ['table', '표 만들기']];
   $('#app').innerHTML = `
-  <nav class="tabs">${TABS.map(([k, t]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${t}${k === 'home' && pending.length ? `<i class="badge">${pending.length}</i>` : ''}</button>`).join('')}</nav>
+  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6">
+    <div><h2 class="text-xl sm:text-2xl font-bold tracking-tight">찬양팀 연습 관리</h2>
+      <p class="text-sm text-slate-500 mt-0.5">${+M().slice(5)}월 연습 참여 현황과 단톡방 공유용 표</p></div>
+    <nav class="flex items-center gap-1 bg-slate-200/70 p-1.5 rounded-xl self-start sm:self-auto overflow-x-auto max-w-full">${TABS.map(([k, t, ic]) =>
+      `<button data-tab="${k}" class="flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap transition-all text-slate-600 hover:text-slate-900">
+        <i data-lucide="${ic}" class="w-4 h-4"></i>${t}${k === 'home' && pending.length ? `<span class="px-1.5 bg-rose-500 text-white text-[10px] font-bold rounded-full">${pending.length}</span>` : ''}</button>`).join('')}</nav>
+  </div>
 
-  <div class="pane" data-pane="home">
-    <div class="stats">
-      <div class="stat"><span>조사 상태</span><b class="${D.open ? 'live' : ''}">${D.open ? '진행 중' : '마감'}</b></div>
-      <div class="stat"><span>응답 완료</span><b>${total - missing.length}<small> / ${total}명</small></b>
-        <div class="bar"><i style="width:${total ? (total - missing.length) / total * 100 : 0}%"></i></div></div>
-      <div class="stat"><span>연습</span><b>${open.length}<small>회</small></b></div>
-      <div class="stat"><span>수정 요청</span><b>${pending.length}<small>건</small></b></div>
+  <div data-pane="home" class="space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="card p-5 flex flex-col justify-between fade-in">
+        <div class="flex items-center justify-between"><span class="eyebrow text-slate-400">조사 상태</span><span class="w-2.5 h-2.5 rounded-full ${D.open ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span></div>
+        <div class="my-4"><h3 class="text-2xl font-bold">${D.open ? '조사 진행 중' : '조사 마감'}</h3>
+          <p class="text-xs text-slate-500 mt-1">${D.open ? '멤버 응답이 바로 반영됩니다.' : '멤버의 변경은 수정 요청으로 들어옵니다.'}</p></div>
+        <button id="toggle" class="btn ${D.open ? 'bg-amber-50 border-amber-300 text-amber-800 hover:bg-amber-100' : 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'}">
+          <i data-lucide="${D.open ? 'lock' : 'unlock'}" class="w-3.5 h-3.5"></i>${D.open ? '이번 달 조사 마감하기' : '조사 다시 열기'}</button>
+      </div>
+      <div class="card p-5 flex flex-col justify-between fade-in" style="animation-delay:60ms">
+        <div class="flex items-center justify-between"><span class="eyebrow text-slate-400">응답률</span><span class="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-md">${pct}%</span></div>
+        <div class="my-4"><h3 class="text-2xl font-bold mb-2">${done} / ${total}명 <span class="text-sm font-normal text-slate-500">응답 완료</span></h3>
+          <div class="h-2.5 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full transition-all duration-700" style="width:${pct}%"></div></div></div>
+        <button data-go="table" class="text-xs text-brand-600 font-semibold hover:underline flex items-center gap-0.5 self-end">표 보러가기 <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+      </div>
+      <div class="card p-5 flex flex-col justify-between fade-in" style="animation-delay:120ms">
+        <div class="flex items-center justify-between"><span class="eyebrow text-slate-400">미응답 멤버</span><span class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-md">${missing.length}명</span></div>
+        <div class="my-3 flex flex-wrap gap-1.5 items-center min-h-[48px]">${missing.map(m => `<span class="px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/80 text-amber-900 text-xs font-bold">${esc(m.name)}</span>`).join('')
+          || '<span class="text-xs font-semibold text-emerald-600 flex items-center gap-1"><i data-lucide="party-popper" class="w-4 h-4"></i>모두 응답했습니다!</span>'}</div>
+        <button id="remind" class="btn btn-dark" ${missing.length ? '' : 'disabled'}><i data-lucide="copy" class="w-3.5 h-3.5"></i>독촉 메시지 복사</button>
+      </div>
     </div>
-    <section><div class="head"><h2>조사 상태</h2>
-      <button id="toggle" class="${D.open ? '' : 'primary'}">${D.open ? '조사 마감하기' : '조사 열기'}</button></div>
-      <p class="muted">${D.open ? '멤버 응답이 바로 반영됩니다. 마감하면 이후 변경은 수정 요청으로 들어옵니다.' : '마감 상태입니다. 멤버의 변경은 아래 수정 요청으로 들어옵니다.'}</p></section>
-    <section><div class="head"><h2>수정 요청</h2>${pending.length ? '<button id="okAll" class="primary">전체 승인</button>' : ''}</div>
-      ${pending.length ? `<div class="reqs">${pending.map(q => `<div class="req">
-        <div><b>${esc(q.name)}</b> <span class="muted">${esc(evName(evById[q.eventId]))}</span></div>
-        <div class="diff"><span class="was">${cur(q) ? esc(ansText(cur(q))) : '미응답'}</span><span class="arrow">→</span><span class="now">${esc(ansText(q))}</span></div>
-        ${q.note ? `<div class="muted">사유: ${esc(q.note)}</div>` : ''}
-        <div class="row"><button data-ok="${esc(q.id)}" class="primary sm">승인</button><button data-no="${esc(q.id)}" class="sm">반려</button></div></div>`).join('')}</div>`
-        : '<p class="empty">대기 중인 요청이 없습니다.</p>'}</section>
-    <section><h2>미응답자 <small class="muted">${missing.length}명</small></h2>
-      ${missing.length ? `<div class="tags">${missing.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>` : '<p class="empty">모두 응답했습니다 🎉</p>'}</section>
+
+    <div class="card overflow-hidden fade-in">
+      <div class="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center"><i data-lucide="git-pull-request" class="w-4 h-4"></i></div>
+          <div><div class="flex items-center gap-2"><h3 class="font-bold">마감 후 수정 요청</h3><span class="px-2 py-0.5 text-xs font-bold rounded-full bg-rose-100 text-rose-700">${pending.length}건</span></div>
+            <p class="text-xs text-slate-500 mt-0.5">승인하면 표에 바로 반영됩니다.</p></div></div>
+        ${pending.length > 1 ? '<button id="okAll" class="btn btn-primary self-start sm:self-auto"><i data-lucide="check-check" class="w-4 h-4"></i>전체 승인</button>' : ''}
+      </div>
+      <div class="divide-y divide-slate-100">${pending.map(q => `<div class="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/50 transition-all">
+        <div class="space-y-2.5 flex-1">
+          <div class="flex items-center gap-2"><span class="font-bold">${esc(q.name)}</span><span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">${esc(posOf(D.members.find(m => m.name === q.name)).join(' · '))}</span></div>
+          <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
+            <span class="font-bold text-slate-800">${esc(evName(evById[q.eventId]))}</span>${cur(q) ? pill(cur(q)) : '<span class="text-slate-400">미응답</span>'}
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400"></i>${pill(q)}</div>
+          ${q.note ? `<p class="text-xs text-slate-600 bg-amber-50/70 border border-amber-200/60 px-3 py-2 rounded-lg"><strong class="text-amber-800">요청 메모:</strong> ${esc(q.note)}</p>` : ''}
+        </div>
+        <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
+          <button data-no="${esc(q.id)}" class="btn">반려</button>
+          <button data-ok="${esc(q.id)}" class="btn btn-primary"><i data-lucide="check" class="w-3.5 h-3.5"></i>승인</button></div>
+      </div>`).join('') || '<div class="p-8 text-center"><p class="text-sm font-semibold text-slate-500">대기 중인 수정 요청이 없습니다</p><p class="text-xs text-slate-400 mt-1">조사가 마감된 뒤 멤버가 응답을 바꾸면 여기에 표시됩니다.</p></div>'}</div>
+    </div>
+
+    <div class="card overflow-hidden fade-in">
+      <div class="p-5 sm:p-6 border-b border-slate-100"><h3 class="font-bold">멤버별 응답 현황</h3></div>
+      <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${act_.map(m => {
+        const rs = D.responses.filter(r => r.name === m.name && open.some(e => e.id === r.eventId));
+        const y = rs.filter(r => r.attend === 'Y').length, n = rs.length - y;
+        return `<div class="p-3.5 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2">
+          <div class="min-w-0"><span class="font-bold text-sm">${esc(m.name)}</span> <span class="text-xs text-slate-500">${esc(posOf(m).join('·'))}</span></div>
+          <div class="flex gap-1 shrink-0">${rs.length ? `<span class="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">참석 ${y}</span>${n ? `<span class="text-[11px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md">불참 ${n}</span>` : ''}`
+            : '<span class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">미응답</span>'}</div></div>`;
+      }).join('')}</div>
+    </div>
   </div>
 
-  <div class="pane" data-pane="sched">
-    <section><div class="head"><h2>${M()} 연습 일정</h2><button id="saveEv" class="primary">일정 저장</button></div>
-      <div class="wide"><table class="edit" id="evs"><tbody>${D.events.map(evRow).join('')}</tbody></table></div>
-      <div class="row"><button id="sat">토요일 자동 추가</button><button id="addEv">＋ 추가 연습</button></div>
-      <p class="muted">일정을 삭제하면 그 일정에 대한 응답도 표에서 빠집니다.</p></section>
+  <div data-pane="sched" class="card p-5 sm:p-6">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-100">
+      <div><h3 class="font-bold">${+M().slice(5)}월 연습 일정</h3><p class="text-xs text-slate-500 mt-0.5">일정을 삭제하면 그 일정의 응답도 표에서 빠집니다.</p></div>
+      <div class="flex flex-wrap gap-2"><button id="sat" class="btn bg-brand-50 border-brand-200/60 text-brand-700 hover:bg-brand-100"><i data-lucide="wand-2" class="w-3.5 h-3.5"></i>토요일 자동 추가</button>
+        <button id="addEv" class="btn"><i data-lucide="plus" class="w-4 h-4"></i>추가 연습</button>
+        <button id="saveEv" class="btn btn-primary"><i data-lucide="save" class="w-4 h-4"></i>일정 저장</button></div>
+    </div>
+    <div id="evs" class="mt-5 space-y-3">${D.events.map(evRow).join('')}</div>
   </div>
 
-  <div class="pane" data-pane="team">
-    <section><div class="head"><h2>포지션</h2><button id="savePos" class="primary">포지션 저장</button></div>
-      <p class="muted">표에는 여기 등록된 포지션만 이 순서대로 나옵니다. 이름을 바꾸면 멤버도 다시 저장해 주세요.</p>
+  <div data-pane="team" class="space-y-6">
+    <div class="card p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div><h3 class="font-bold">포지션 관리</h3><p class="text-xs text-slate-500 mt-0.5">표에는 여기 등록된 포지션만 이 순서대로 나오고, 같은 종류끼리 묶입니다.</p></div>
+        <div class="flex gap-2"><button id="addPos" class="btn"><i data-lucide="plus" class="w-4 h-4"></i>포지션</button>
+          <button id="savePos" class="btn btn-primary"><i data-lucide="save" class="w-4 h-4"></i>포지션 저장</button></div>
+      </div>
       <datalist id="kinds">${[...new Set(D.positions.map(p => p.kind).filter(Boolean))].map(k => `<option value="${esc(k)}">`).join('')}</datalist>
-      <div class="wide"><table class="edit" id="poss"><tbody>${D.positions.map(posRow).join('')}</tbody></table></div>
-      <div class="row"><button id="addPos">＋ 포지션</button></div></section>
-    <section><div class="head"><h2>멤버</h2><button id="saveMem" class="primary">멤버 저장</button></div>
-      <div class="wide"><table class="edit" id="mems"><tbody>${D.members.map(memRow).join('')}</tbody></table></div>
-      <div class="row"><button id="addMem">＋ 멤버</button></div></section>
+      <div id="poss" class="space-y-2">${D.positions.map(posRow).join('')}</div>
+    </div>
+    <div class="card p-5 sm:p-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+        <div><h3 class="font-bold">멤버와 담당 포지션</h3><p class="text-xs text-slate-500 mt-0.5">포지션을 눌러 여러 개 배정할 수 있습니다. 포지션 이름을 바꿨다면 멤버도 다시 저장하세요.</p></div>
+        <div class="flex gap-2"><button id="addMem" class="btn"><i data-lucide="user-plus" class="w-4 h-4"></i>멤버</button>
+          <button id="saveMem" class="btn btn-primary"><i data-lucide="save" class="w-4 h-4"></i>멤버 저장</button></div>
+      </div>
+      <div id="mems" class="divide-y divide-slate-100">${D.members.map(memRow).join('')}</div>
+    </div>
   </div>
 
-  <div class="pane" data-pane="table">
-    <section><div class="head"><h2>참석 현황표</h2><button data-png="t1" class="primary">PNG 저장</button></div>
-      <div class="wide sheet" id="t1">${table1(open)}</div></section>
-    <section><div class="head"><h2>불참자 정리표</h2><button data-png="t2" class="primary">PNG 저장</button></div>
-      <div class="wide sheet" id="t2">${table2(evById)}</div></section>
+  <div data-pane="table" class="space-y-6">
+    <div class="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0"><i data-lucide="share-2" class="w-5 h-5"></i></div>
+        <div><h3 class="font-bold text-sm sm:text-base">단톡방 공유용 연습 참여표</h3><p class="text-xs text-slate-500">아래 카드가 그대로 PNG 이미지로 저장됩니다.</p></div></div>
+      <button id="png" class="btn btn-primary"><i data-lucide="download" class="w-4 h-4"></i>PNG 이미지로 저장</button>
+    </div>
+    <div class="overflow-x-auto pb-4"><div id="capture" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 min-w-[720px] space-y-8">${sheet(open, evById)}</div></div>
   </div>`;
   showTab(tab);
-  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
-
-  $('#toggle').onclick = e => act(e.target, { action: 'setOpen', open: !D.open });
-  $('#okAll')?.addEventListener('click', e => act(e.target, { action: 'decide', approve: true, ids: pending.map(q => q.id) }));
-  $('#sat').onclick = addSaturdays;
-  $('#addEv').onclick = () => $('#evs tbody').insertAdjacentHTML('beforeend', evRow({ kind: '추가', label: '추가 연습', date: '', time: '', id: '' }));
-  $('#addMem').onclick = () => $('#mems tbody').insertAdjacentHTML('beforeend', memRow({ name: '', positions: '', active: 'TRUE' }));
-  $('#saveEv').onclick = e => saveEvents(e.target);
-  $('#addPos').onclick = () => $('#poss tbody').insertAdjacentHTML('beforeend', posRow({ name: '', kind: '' }));
-  $('#savePos').onclick = e => act(e.target, { action: 'savePositions', positions: [...$('#poss tbody').rows].map(tr => {
-    const [n, k] = tr.querySelectorAll('input');
-    return { name: n.value, kind: k.value };
-  }) });
-  $('#saveMem').onclick = e => act(e.target, { action: 'saveMembers', members: [...$('#mems tbody').rows].map(tr => ({
-    name: tr.querySelector('input').value,
-    positions: [...tr.querySelectorAll('.chips input:checked')].map(c => c.value),
-    active: tr.querySelector('td:nth-child(3) input').checked,
-  })) });
 }
 
-function addSaturdays() {
-  const [y, m] = M().split('-').map(Number);
-  const have = new Set([...$('#evs tbody').rows].map(tr => tr.querySelector('input').value));
-  for (let d = new Date(y, m - 1, 1); d.getMonth() === m - 1; d.setDate(d.getDate() + 1)) {
-    const iso = `${y}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    if (d.getDay() === 6 && !have.has(iso))
-      $('#evs tbody').insertAdjacentHTML('beforeend', evRow({ kind: '정기', label: '토요 연습', date: iso, time: '', id: '' }));
-  }
+function showTab(k) {
+  tab = k;
+  document.querySelectorAll('[data-tab]').forEach(b => {
+    const on = b.dataset.tab === k;
+    b.classList.toggle('bg-white', on); b.classList.toggle('shadow-sm', on); b.classList.toggle('text-slate-900', on);
+  });
+  document.querySelectorAll('[data-pane]').forEach(p => { p.hidden = p.dataset.pane !== k; p.classList.toggle('fade-in', !p.hidden); });
+  icons();
 }
 
-function saveEvents(btn) {
-  const events = [...$('#evs tbody').rows].map(tr => {
-    const [d, l, t, o] = tr.querySelectorAll('input');
-    return { id: tr.dataset.id, kind: tr.dataset.kind, date: d.value, label: l.value, time: t.value, off: o.checked };
-  }).filter(e => e.date);
-  const wrong = events.filter(e => !e.date.startsWith(M()));
-  if (wrong.length) return alert(`${M()}에 속하지 않는 날짜가 있습니다: ${wrong.map(e => e.date).join(', ')}`);
-  act(btn, { action: 'saveEvents', events });
+function sheet(open, evById) {
+  const head = `<div class="flex items-end justify-between border-b-2 border-slate-900 pb-5">
+    <div><div class="inline-block px-2.5 py-1 rounded-md bg-brand-600 text-white text-xs font-bold mb-2">PRAISE TEAM SCHEDULE</div>
+      <h2 class="text-2xl font-extrabold tracking-tight">${M().slice(0, 4)}년 ${+M().slice(5)}월 찬양팀 연습 참여표</h2></div>
+    <span class="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg">연습 ${open.length}회</span></div>`;
+  return head + section('brand', '날짜별 · 포지션별 참석자', table1(open)) + section('rose', '불참자와 주일 예배 참석 여부', absent(evById));
 }
+const section = (c, t, body) => `<div><div class="flex items-center gap-2 mb-3"><span class="w-2 h-5 rounded-sm bg-${c === 'brand' ? 'brand-600' : 'rose-500'}"></span><h3 class="font-bold">${t}</h3></div>${body}</div>`;
 
 function table1(open) {
-  if (!open.length) return '<p class="muted">연습 일정이 없습니다.</p>';
-  if (!D.positions.length) return '<p class="muted">포지션을 먼저 등록하세요.</p>';
+  if (!open.length) return '<p class="text-sm text-slate-500">연습 일정이 없습니다.</p>';
+  if (!D.positions.length) return '<p class="text-sm text-slate-500">포지션을 먼저 등록하세요.</p>';
   const byName = Object.fromEntries(D.members.map(m => [m.name, posOf(m)]));
   const cols = open.map(ev => D.responses.filter(r => r.eventId === ev.id && r.attend === 'Y').map(r => r.name));
   // 종류가 같은 포지션은 묶어서 종류 칸을 합친다.
   const kindSpan = (p, i) => i > 0 && D.positions[i - 1].kind === p.kind ? ''
-    : `<th rowspan="${(k => k < 0 ? D.positions.length - i : k)(D.positions.slice(i).findIndex(q => q.kind !== p.kind))}">${esc(p.kind)}</th>`;
-  return `<table><caption>${M()} 연습 참석 현황</caption>
-    <thead><tr><th>종류</th><th>포지션</th>${open.map(ev => `<th>${fmt(ev.date)}<br><small>${esc(ev.label)}</small></th>`).join('')}</tr></thead>
-    <tbody>${D.positions.map((p, i) => `<tr>${kindSpan(p, i)}<th>${esc(p.name)}</th>${cols.map(ns =>
-      `<td>${ns.filter(n => byName[n]?.includes(p.name)).map(esc).join('<br>')}</td>`).join('')}</tr>`).join('')}
-    <tr class="sum"><th colspan="2">참석 인원</th>${cols.map(ns => `<td>${ns.length}명</td>`).join('')}</tr></tbody></table>`;
+    : `<th class="px-3 py-2.5 bg-slate-50 text-xs font-bold text-slate-500 border-r border-slate-200 align-middle" rowspan="${(k => k < 0 ? D.positions.length - i : k)(D.positions.slice(i).findIndex(q => q.kind !== p.kind))}">${esc(p.kind)}</th>`;
+  return `<div class="overflow-hidden rounded-2xl border border-slate-200"><table class="w-full text-left border-collapse text-sm">
+    <thead><tr class="bg-slate-900 text-white text-xs"><th class="px-3 py-3">종류</th><th class="px-3 py-3">포지션</th>${open.map(ev =>
+      `<th class="px-3 py-3 text-center">${fmt(ev.date)}<div class="font-normal text-slate-300 mt-0.5">${esc(ev.label)}</div></th>`).join('')}</tr></thead>
+    <tbody class="divide-y divide-slate-200">${D.positions.map((p, i) => `<tr>${kindSpan(p, i)}<th class="px-3 py-2.5 font-bold whitespace-nowrap">${esc(p.name)}</th>${cols.map(ns => {
+      const who = ns.filter(n => byName[n]?.includes(p.name));
+      return `<td class="px-3 py-2.5 text-center ${who.length ? '' : 'text-slate-300'}">${who.map(esc).join('<br>') || '—'}</td>`;
+    }).join('')}</tr>`).join('')}
+    <tr class="bg-brand-50 font-bold text-brand-700"><th colspan="2" class="px-3 py-2.5">참석 인원</th>${cols.map(ns => `<td class="px-3 py-2.5 text-center">${ns.length}명</td>`).join('')}</tr></tbody></table></div>`;
 }
 
-function table2(evById) {
+function absent(evById) {
   const byName = Object.fromEntries(D.members.map(m => [m.name, m]));
-  const rows = D.responses
-    .filter(r => r.attend === 'N' && evById[r.eventId]?.off !== 'TRUE' && evById[r.eventId])
-    .sort((a, b) => (evById[a.eventId].date + a.name).localeCompare(evById[b.eventId].date + b.name));
-  if (!rows.length) return '<p class="muted">불참자가 없습니다.</p>';
-  return `<table><caption>${M()} 불참자</caption>
-    <thead><tr><th>날짜</th><th>이름</th><th>포지션</th><th>사유</th><th>주일 예배</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><td>${esc(evName(evById[r.eventId]))}</td><td>${esc(r.name)}</td>
-      <td>${esc(posOf(byName[r.name]).join(', '))}</td><td>${esc(r.reason)}</td>
-      <td class="${r.sundayOk === 'Y' ? 'ok' : 'no'}">${r.sundayOk === 'Y' ? '가능' : '불가'}</td></tr>`).join('')}</tbody></table>`;
+  const days = D.events.filter(e => e.off !== 'TRUE').map(ev => [ev, D.responses.filter(r => r.eventId === ev.id && r.attend === 'N')]).filter(([, rs]) => rs.length);
+  if (!days.length) return '<p class="text-sm text-slate-500">불참자가 없습니다.</p>';
+  return `<div class="flex justify-end gap-3 text-xs mb-2"><span class="flex items-center gap-1 text-slate-600"><span class="w-2 h-2 rounded-full bg-emerald-500"></span>주일 예배 가능</span>
+    <span class="flex items-center gap-1 text-slate-600"><span class="w-2 h-2 rounded-full bg-rose-500"></span>주일 예배 불가</span></div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">${days.map(([ev, rs]) => `<div class="rounded-2xl border border-slate-200 overflow-hidden">
+      <div class="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200"><b class="text-sm">${fmt(ev.date)}</b> <span class="text-xs text-slate-500">${esc(ev.label)}</span></div>
+      <div class="p-3.5 space-y-2.5">${rs.map(r => `<div><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full shrink-0 ${r.sundayOk === 'Y' ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
+        <b class="text-sm">${esc(r.name)}</b><span class="text-[11px] text-slate-400">${esc(posOf(byName[r.name]).join('·'))}</span></div>
+        <p class="text-xs text-slate-500 pl-3.5 mt-0.5">${esc(r.reason)}</p></div>`).join('')}</div></div>`).join('')}</div>`;
 }
 
-// 표 이미지 저장, 요청 승인/반려, 행 삭제는 이벤트 위임으로 처리한다.
-document.addEventListener('click', e => {
-  const t = e.target;
-  if (t.classList.contains('del')) t.closest('tr').remove();
-  if (t.dataset.ok) act(t, { action: 'decide', approve: true, ids: [t.dataset.ok] });
-  if (t.dataset.no) act(t, { action: 'decide', approve: false, ids: [t.dataset.no] });
-  if (t.dataset.png) {
-    const table = $('#' + t.dataset.png + ' table');
-    if (!table) return alert('저장할 표가 없습니다.');
-    run(t, async () => {
-      const c = await html2canvas(table, { scale: 2, backgroundColor: '#fff' });
-      const a = document.createElement('a');
-      a.href = c.toDataURL('image/png');
-      a.download = `${M()}-${t.dataset.png === 't1' ? '참석현황' : '불참자'}.png`;
-      a.click();
-    });
+function addSaturdays() {
+  const [y, m] = M().split('-').map(Number);
+  const have = new Set([...document.querySelectorAll('#evs .ev')].map(r => r.querySelector('input').value));
+  let n = 0;
+  for (let d = new Date(y, m - 1, 1); d.getMonth() === m - 1; d.setDate(d.getDate() + 1)) {
+    const iso = `${y}-${String(m).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (d.getDay() === 6 && !have.has(iso)) $('#evs').insertAdjacentHTML('beforeend', evRow({ kind: '정기', label: '토요 연습', date: iso, time: '', id: '' })), n++;
   }
+  icons();
+  toast(n ? `토요일 ${n}개를 추가했습니다. 저장을 눌러야 반영됩니다.` : '이미 모든 토요일이 있습니다.');
+}
+
+function saveEvents(btn) {
+  const events = [...document.querySelectorAll('#evs .ev')].map(r => {
+    const [d, l, t, o] = r.querySelectorAll('input');
+    return { id: r.dataset.id, kind: r.dataset.kind, date: d.value, label: l.value, time: t.value, off: o.checked };
+  }).filter(e => e.date);
+  const wrong = events.filter(e => !e.date.startsWith(M()));
+  if (wrong.length) return toast(`${M()}에 속하지 않는 날짜가 있습니다: ${wrong.map(e => e.date).join(', ')}`, 'err');
+  act(btn, { action: 'saveEvents', events }, '일정을 저장했습니다.');
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast('클립보드에 복사했습니다.', 'ok'); }
+  catch { prompt('아래 내용을 복사하세요.', text); }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  const add = (box, html) => { $(box).insertAdjacentHTML('beforeend', html); icons(); };
+  if (b.dataset.tab) showTab(b.dataset.tab);
+  else if (b.dataset.go) showTab(b.dataset.go);
+  else if (b.classList.contains('del')) b.closest('.ev, .pos, .mem').remove();
+  else if (b.dataset.ok) act(b, { action: 'decide', approve: true, ids: [b.dataset.ok] }, '승인했습니다.');
+  else if (b.dataset.no) act(b, { action: 'decide', approve: false, ids: [b.dataset.no] }, '반려했습니다.');
+  else if (b.id === 'okAll') act(b, { action: 'decide', approve: true, ids: D.requests.filter(q => q.status === 'pending').map(q => q.id) }, '모두 승인했습니다.');
+  else if (b.id === 'toggle') act(b, { action: 'setOpen', open: !D.open }, D.open ? '조사를 마감했습니다.' : '조사를 열었습니다.');
+  else if (b.id === 'remind') {
+    const open = D.events.filter(e => e.off !== 'TRUE');
+    const names = D.members.filter(m => m.active === 'TRUE' && open.some(ev => !D.responses.some(r => r.eventId === ev.id && r.name === m.name))).map(m => m.name);
+    copy(`[찬양팀 ${+M().slice(5)}월 연습 참여 조사]\n아직 응답하지 않으신 ${names.join(', ')}님, 링크에서 참석 여부를 체크해 주세요! 🙏\n${location.href.replace(/admin\.html.*$/, '')}`);
+  }
+  else if (b.id === 'sat') addSaturdays();
+  else if (b.id === 'addEv') add('#evs', evRow({ kind: '추가', label: '추가 연습', date: '', time: '', id: '' }));
+  else if (b.id === 'saveEv') saveEvents(b);
+  else if (b.id === 'addPos') add('#poss', posRow({ name: '', kind: '' }));
+  else if (b.id === 'addMem') add('#mems', memRow({ name: '', positions: '', active: 'TRUE' }));
+  else if (b.id === 'savePos') act(b, { action: 'savePositions', positions: [...document.querySelectorAll('#poss .pos')].map(r => {
+    const [n, k] = r.querySelectorAll('input');
+    return { name: n.value, kind: k.value };
+  }) }, '포지션을 저장했습니다.');
+  else if (b.id === 'saveMem') act(b, { action: 'saveMembers', members: [...document.querySelectorAll('#mems .mem')].map(r => ({
+    name: r.querySelector('input').value,
+    positions: [...r.querySelectorAll('label:not(.sw) input:checked')].map(c => c.value),
+    active: r.querySelector('.sw input').checked,
+  })) }, '멤버를 저장했습니다.');
+  else if (b.id === 'png') run(b, async () => {
+    const c = await html2canvas($('#capture'), { scale: 2, backgroundColor: '#fff' });
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = `${M()}-연습참여표.png`;
+    a.click();
+  }, '이미지 만드는 중…');
 });
 
 $('#month').value = nextMonth();
 $('#month').onchange = load;
+icons();
 load();
 </script>
 </body>
