@@ -1,6 +1,5 @@
 // index.html / admin.html 공용
 const API = 'https://script.google.com/macros/s/AKfycbyB53K2SiWCA53EdWJIm5FUjlks5D67J042nxLNXrjh5u-rueEXtqOoEKqEfDrNO9jb/exec'; // Apps Script 웹 앱 URL (.../exec)
-const POSITIONS = ['인도', '보컬', '건반', '세컨건반', '일렉', '어쿠스틱', '베이스', '드럼', '엔지니어'];
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -24,7 +23,12 @@ const get = month => call(fetch(`${API}?month=${month}`));
 // text/plain 본문이라 CORS preflight 없이 Apps Script로 보낼 수 있다.
 const post = body => call(fetch(API, { method: 'POST', body: JSON.stringify(body) }));
 
-async function run(btn, fn) {
+// 저장 중에는 화면 전체를 덮는 로딩 표시를 띄우고 중복 클릭을 막는다.
+async function run(btn, fn, label = '저장 중…') {
+  const ov = document.createElement('div');
+  ov.className = 'loading';
+  ov.innerHTML = `<div><span class="spin"></span>${esc(label)}</div>`;
+  document.body.append(ov);
   btn.disabled = true;
-  try { await fn(); } catch (e) { alert(e.message); } finally { btn.disabled = false; }
+  try { await fn(); } catch (e) { alert(e.message); } finally { btn.disabled = false; ov.remove(); }
 }

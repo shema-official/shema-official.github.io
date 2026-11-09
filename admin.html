@@ -4,57 +4,70 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>찬양팀 조사 관리자</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 <main>
   <header>
-    <h1>찬양팀 조사 관리자</h1>
+    <h1><span class="logo">♪</span>찬양팀 조사 <em>관리자</em></h1>
     <input type="month" id="month" aria-label="관리 월">
   </header>
   <div id="app"></div>
 </main>
 <script src="common.js"></script>
 <script>
-let D, pw = '';
+let D, pw = '', tab = 'home';
+const showTab = k => {
+  tab = k;
+  document.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+  document.querySelectorAll('[data-pane]').forEach(p => p.classList.toggle('on', p.dataset.pane === k));
+};
 try { pw = sessionStorage.getItem('pw') || ''; } catch {}
 const M = () => $('#month').value;
-const posOf = m => (m?.positions || '').split(',').map(s => s.trim()).filter(Boolean);
+// 등록된 포지션만 인정한다(등록 순서 유지).
+const posOf = m => { const mine = (m?.positions || '').split(','); return D.positions.map(p => p.name).filter(n => mine.includes(n)); };
 
 async function load() {
   if (!pw) return renderLogin();
-  $('#app').textContent = '불러오는 중…';
+  $('#app').innerHTML = '<div class="skeleton"></div>'.repeat(3);
   try { D = await get(M()); render(); }
   catch (e) { $('#app').textContent = '불러오기 실패: ' + e.message; }
 }
 
 function renderLogin() {
-  $('#app').innerHTML = `<section><h2>관리자 로그인</h2><div class="row">
-    <input type="password" id="pw" placeholder="비밀번호"><button id="login" class="primary">확인</button></div></section>`;
+  $('#app').innerHTML = `<section class="done"><div class="check"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0110 0v3M6 11h12v9H6z"/></svg></div>
+    <h2>관리자 로그인</h2><p class="muted">관리자 비밀번호를 입력하세요.</p>
+    <div class="row" style="justify-content:center"><input type="password" id="pw" placeholder="비밀번호"><button id="login" class="primary">로그인</button></div></section>`;
   $('#login').onclick = e => run(e.target, async () => {
     await post({ action: 'auth', pw: $('#pw').value });
     pw = $('#pw').value;
     try { sessionStorage.setItem('pw', pw); } catch {}
     load();
-  });
+  }, '확인 중…');
 }
 
 // 저장 후 다시 불러와 화면을 갱신한다.
-const act = (btn, body) => run(btn, async () => { await post({ pw, month: M(), ...body }); D = await get(M()); render(); });
+const act = (btn, body) => run(btn, async () => { D = (await post({ pw, month: M(), ...body })).data; render(); });
 
 const evRow = ev => `<tr data-id="${esc(ev.id)}" data-kind="${esc(ev.kind)}">
   <td><input type="date" value="${esc(ev.date)}"></td>
   <td><input value="${esc(ev.label)}" placeholder="이름"></td>
   <td><input type="time" value="${esc(ev.time)}"></td>
-  <td><label><input type="checkbox" ${ev.off === 'TRUE' ? 'checked' : ''}> 연습 없음</label></td>
-  <td><button class="del" title="삭제">✕</button></td></tr>`;
+  <td><label class="switch"><input type="checkbox" ${ev.off === 'TRUE' ? 'checked' : ''}><i></i>연습 없음</label></td>
+  <td><button class="del icon" title="삭제" aria-label="삭제">✕</button></td></tr>`;
+
+const posRow = p => `<tr>
+  <td><input value="${esc(p.name)}" placeholder="포지션 이름 (예: 메인보컬)"></td>
+  <td><input value="${esc(p.kind)}" placeholder="종류 (예: 보컬, 세션)" list="kinds"></td>
+  <td><button class="del icon" title="삭제" aria-label="삭제">✕</button></td></tr>`;
 
 const memRow = m => `<tr>
   <td><input value="${esc(m.name)}" placeholder="이름"></td>
-  <td><input value="${esc(m.positions)}" placeholder="보컬,건반"></td>
-  <td><label><input type="checkbox" ${m.active !== 'FALSE' ? 'checked' : ''}> 활동</label></td>
-  <td><button class="del" title="삭제">✕</button></td></tr>`;
+  <td><div class="chips">${D.positions.map(p => `<label><input type="checkbox" value="${esc(p.name)}" ${posOf(m).includes(p.name) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="muted">포지션을 먼저 등록하세요</span>'}</div></td>
+  <td><label class="switch"><input type="checkbox" ${m.active !== 'FALSE' ? 'checked' : ''}><i></i>활동</label></td>
+  <td><button class="del icon" title="삭제" aria-label="삭제">✕</button></td></tr>`;
 
 function render() {
   const open = D.events.filter(e => e.off !== 'TRUE');
@@ -64,36 +77,59 @@ function render() {
   const missing = D.members.filter(m => m.active === 'TRUE' &&
     open.some(ev => !D.responses.some(r => r.eventId === ev.id && r.name === m.name)));
 
+  const total = D.members.filter(m => m.active === 'TRUE').length;
+  const TABS = [['home', '현황'], ['sched', '일정'], ['team', '팀 구성'], ['table', '표 만들기']];
   $('#app').innerHTML = `
-  <section><h2>${M()} 조사 상태</h2>
-    <p class="banner ${D.open ? '' : 'closed'}">${D.open ? '조사 진행 중: 멤버 응답이 바로 반영됩니다.' : '마감됨: 멤버 변경은 수정 요청으로 들어옵니다.'}</p>
-    <button id="toggle" class="primary">${D.open ? '조사 마감하기' : '조사 열기'}</button></section>
+  <nav class="tabs">${TABS.map(([k, t]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${t}${k === 'home' && pending.length ? `<i class="badge">${pending.length}</i>` : ''}</button>`).join('')}</nav>
 
-  <section><h2>수정 요청 (${pending.length}건)</h2>
-    ${pending.length ? `<div class="wide"><table><thead><tr><th>이름</th><th>일정</th><th>기존</th><th>요청</th><th>사유</th><th></th></tr></thead><tbody>
-    ${pending.map(q => `<tr><td>${esc(q.name)}</td><td>${esc(evName(evById[q.eventId]))}</td>
-      <td>${cur(q) ? esc(ansText(cur(q))) : '미응답'}</td><td>${esc(ansText(q))}</td><td>${esc(q.note)}</td>
-      <td><button data-ok="${esc(q.id)}">승인</button> <button data-no="${esc(q.id)}">반려</button></td></tr>`).join('')}
-    </tbody></table></div><div class="row"><button id="okAll" class="primary">전체 승인</button></div>` : '<p class="muted">대기 중인 요청이 없습니다.</p>'}</section>
+  <div class="pane" data-pane="home">
+    <div class="stats">
+      <div class="stat"><span>조사 상태</span><b class="${D.open ? 'live' : ''}">${D.open ? '진행 중' : '마감'}</b></div>
+      <div class="stat"><span>응답 완료</span><b>${total - missing.length}<small> / ${total}명</small></b>
+        <div class="bar"><i style="width:${total ? (total - missing.length) / total * 100 : 0}%"></i></div></div>
+      <div class="stat"><span>연습</span><b>${open.length}<small>회</small></b></div>
+      <div class="stat"><span>수정 요청</span><b>${pending.length}<small>건</small></b></div>
+    </div>
+    <section><div class="head"><h2>조사 상태</h2>
+      <button id="toggle" class="${D.open ? '' : 'primary'}">${D.open ? '조사 마감하기' : '조사 열기'}</button></div>
+      <p class="muted">${D.open ? '멤버 응답이 바로 반영됩니다. 마감하면 이후 변경은 수정 요청으로 들어옵니다.' : '마감 상태입니다. 멤버의 변경은 아래 수정 요청으로 들어옵니다.'}</p></section>
+    <section><div class="head"><h2>수정 요청</h2>${pending.length ? '<button id="okAll" class="primary">전체 승인</button>' : ''}</div>
+      ${pending.length ? `<div class="reqs">${pending.map(q => `<div class="req">
+        <div><b>${esc(q.name)}</b> <span class="muted">${esc(evName(evById[q.eventId]))}</span></div>
+        <div class="diff"><span class="was">${cur(q) ? esc(ansText(cur(q))) : '미응답'}</span><span class="arrow">→</span><span class="now">${esc(ansText(q))}</span></div>
+        ${q.note ? `<div class="muted">사유: ${esc(q.note)}</div>` : ''}
+        <div class="row"><button data-ok="${esc(q.id)}" class="primary sm">승인</button><button data-no="${esc(q.id)}" class="sm">반려</button></div></div>`).join('')}</div>`
+        : '<p class="empty">대기 중인 요청이 없습니다.</p>'}</section>
+    <section><h2>미응답자 <small class="muted">${missing.length}명</small></h2>
+      ${missing.length ? `<div class="tags">${missing.map(m => `<span>${esc(m.name)}</span>`).join('')}</div>` : '<p class="empty">모두 응답했습니다 🎉</p>'}</section>
+  </div>
 
-  <section><h2>연습 일정</h2>
-    <div class="wide"><table class="edit" id="evs"><tbody>${D.events.map(evRow).join('')}</tbody></table></div>
-    <div class="row"><button id="sat">토요일 자동 추가</button><button id="addEv">추가 연습 +</button><button id="saveEv" class="primary">일정 저장</button></div>
-    <p class="muted">일정을 삭제하면 그 일정에 대한 응답도 표에서 빠집니다.</p></section>
+  <div class="pane" data-pane="sched">
+    <section><div class="head"><h2>${M()} 연습 일정</h2><button id="saveEv" class="primary">일정 저장</button></div>
+      <div class="wide"><table class="edit" id="evs"><tbody>${D.events.map(evRow).join('')}</tbody></table></div>
+      <div class="row"><button id="sat">토요일 자동 추가</button><button id="addEv">＋ 추가 연습</button></div>
+      <p class="muted">일정을 삭제하면 그 일정에 대한 응답도 표에서 빠집니다.</p></section>
+  </div>
 
-  <section><h2>멤버</h2>
-    <p class="muted">포지션은 쉼표로 구분합니다: ${esc(POSITIONS.join(', '))}</p>
-    <div class="wide"><table class="edit" id="mems"><tbody>${D.members.map(memRow).join('')}</tbody></table></div>
-    <div class="row"><button id="addMem">멤버 +</button><button id="saveMem" class="primary">멤버 저장</button></div></section>
+  <div class="pane" data-pane="team">
+    <section><div class="head"><h2>포지션</h2><button id="savePos" class="primary">포지션 저장</button></div>
+      <p class="muted">표에는 여기 등록된 포지션만 이 순서대로 나옵니다. 이름을 바꾸면 멤버도 다시 저장해 주세요.</p>
+      <datalist id="kinds">${[...new Set(D.positions.map(p => p.kind).filter(Boolean))].map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+      <div class="wide"><table class="edit" id="poss"><tbody>${D.positions.map(posRow).join('')}</tbody></table></div>
+      <div class="row"><button id="addPos">＋ 포지션</button></div></section>
+    <section><div class="head"><h2>멤버</h2><button id="saveMem" class="primary">멤버 저장</button></div>
+      <div class="wide"><table class="edit" id="mems"><tbody>${D.members.map(memRow).join('')}</tbody></table></div>
+      <div class="row"><button id="addMem">＋ 멤버</button></div></section>
+  </div>
 
-  <section><h2>미응답자 (${missing.length}명)</h2>
-    <p>${missing.length ? esc(missing.map(m => m.name).join(', ')) : '모두 응답했습니다.'}</p></section>
-
-  <section><h2>참석 현황표</h2><div class="wide sheet" id="t1">${table1(open)}</div>
-    <div class="row"><button data-png="t1" class="primary">PNG 저장</button></div></section>
-
-  <section><h2>불참자 정리표</h2><div class="wide sheet" id="t2">${table2(evById)}</div>
-    <div class="row"><button data-png="t2" class="primary">PNG 저장</button></div></section>`;
+  <div class="pane" data-pane="table">
+    <section><div class="head"><h2>참석 현황표</h2><button data-png="t1" class="primary">PNG 저장</button></div>
+      <div class="wide sheet" id="t1">${table1(open)}</div></section>
+    <section><div class="head"><h2>불참자 정리표</h2><button data-png="t2" class="primary">PNG 저장</button></div>
+      <div class="wide sheet" id="t2">${table2(evById)}</div></section>
+  </div>`;
+  showTab(tab);
+  document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
   $('#toggle').onclick = e => act(e.target, { action: 'setOpen', open: !D.open });
   $('#okAll')?.addEventListener('click', e => act(e.target, { action: 'decide', approve: true, ids: pending.map(q => q.id) }));
@@ -101,10 +137,16 @@ function render() {
   $('#addEv').onclick = () => $('#evs tbody').insertAdjacentHTML('beforeend', evRow({ kind: '추가', label: '추가 연습', date: '', time: '', id: '' }));
   $('#addMem').onclick = () => $('#mems tbody').insertAdjacentHTML('beforeend', memRow({ name: '', positions: '', active: 'TRUE' }));
   $('#saveEv').onclick = e => saveEvents(e.target);
-  $('#saveMem').onclick = e => act(e.target, { action: 'saveMembers', members: [...$('#mems tbody').rows].map(tr => {
-    const [n, p, a] = tr.querySelectorAll('input');
-    return { name: n.value, positions: p.value, active: a.checked };
+  $('#addPos').onclick = () => $('#poss tbody').insertAdjacentHTML('beforeend', posRow({ name: '', kind: '' }));
+  $('#savePos').onclick = e => act(e.target, { action: 'savePositions', positions: [...$('#poss tbody').rows].map(tr => {
+    const [n, k] = tr.querySelectorAll('input');
+    return { name: n.value, kind: k.value };
   }) });
+  $('#saveMem').onclick = e => act(e.target, { action: 'saveMembers', members: [...$('#mems tbody').rows].map(tr => ({
+    name: tr.querySelector('input').value,
+    positions: [...tr.querySelectorAll('.chips input:checked')].map(c => c.value),
+    active: tr.querySelector('td:nth-child(3) input').checked,
+  })) });
 }
 
 function addSaturdays() {
@@ -129,14 +171,17 @@ function saveEvents(btn) {
 
 function table1(open) {
   if (!open.length) return '<p class="muted">연습 일정이 없습니다.</p>';
+  if (!D.positions.length) return '<p class="muted">포지션을 먼저 등록하세요.</p>';
   const byName = Object.fromEntries(D.members.map(m => [m.name, posOf(m)]));
-  const positions = [...new Set([...POSITIONS, ...D.members.flatMap(posOf)])];
   const cols = open.map(ev => D.responses.filter(r => r.eventId === ev.id && r.attend === 'Y').map(r => r.name));
+  // 종류가 같은 포지션은 묶어서 종류 칸을 합친다.
+  const kindSpan = (p, i) => i > 0 && D.positions[i - 1].kind === p.kind ? ''
+    : `<th rowspan="${(k => k < 0 ? D.positions.length - i : k)(D.positions.slice(i).findIndex(q => q.kind !== p.kind))}">${esc(p.kind)}</th>`;
   return `<table><caption>${M()} 연습 참석 현황</caption>
-    <thead><tr><th>포지션</th>${open.map(ev => `<th>${fmt(ev.date)}<br><small>${esc(ev.label)}</small></th>`).join('')}</tr></thead>
-    <tbody>${positions.map(p => `<tr><th>${esc(p)}</th>${cols.map(ns =>
-      `<td>${ns.filter(n => byName[n]?.includes(p)).map(esc).join('<br>')}</td>`).join('')}</tr>`).join('')}
-    <tr class="sum"><th>참석 인원</th>${cols.map(ns => `<td>${ns.length}명</td>`).join('')}</tr></tbody></table>`;
+    <thead><tr><th>종류</th><th>포지션</th>${open.map(ev => `<th>${fmt(ev.date)}<br><small>${esc(ev.label)}</small></th>`).join('')}</tr></thead>
+    <tbody>${D.positions.map((p, i) => `<tr>${kindSpan(p, i)}<th>${esc(p.name)}</th>${cols.map(ns =>
+      `<td>${ns.filter(n => byName[n]?.includes(p.name)).map(esc).join('<br>')}</td>`).join('')}</tr>`).join('')}
+    <tr class="sum"><th colspan="2">참석 인원</th>${cols.map(ns => `<td>${ns.length}명</td>`).join('')}</tr></tbody></table>`;
 }
 
 function table2(evById) {

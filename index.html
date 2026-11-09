@@ -4,12 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>찬양팀 연습 참여 조사</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <main>
   <header>
-    <h1>찬양팀 연습 참여 조사</h1>
+    <h1><span class="logo">♪</span>찬양팀 연습 참여 조사</h1>
     <input type="month" id="month" aria-label="조사 월">
   </header>
   <div id="app">불러오는 중…</div>
@@ -17,20 +18,21 @@
 <script src="common.js"></script>
 <script>
 let D, me = '';
+const SKELETON = '<div class="skeleton"></div>'.repeat(3);
 
 async function load() {
-  $('#app').textContent = '불러오는 중…';
+  $('#app').innerHTML = SKELETON;
   try { D = await get($('#month').value); render(); }
-  catch (e) { $('#app').textContent = '불러오기 실패: ' + e.message; }
+  catch (e) { $('#app').innerHTML = `<section class="empty">불러오지 못했습니다: ${esc(e.message)}</section>`; }
 }
 
 function render() {
   const names = D.members.filter(m => m.active === 'TRUE').map(m => m.name);
   $('#app').innerHTML = `
-    <p class="banner ${D.open ? '' : 'closed'}">${D.open
+    <p class="banner ${D.open ? '' : 'closed'}"><span>${D.open
       ? '조사 진행 중입니다. 저장하면 바로 반영됩니다.'
-      : '조사가 마감되었습니다. 응답을 바꾸면 <b>수정 요청</b>으로 전달되고, 관리자가 승인하면 반영됩니다.'}</p>
-    <section><label>이름 <select id="who"><option value="">선택하세요</option>
+      : '조사가 마감되었습니다. 응답을 바꾸면 <b>수정 요청</b>으로 전달되고, 관리자가 승인하면 반영됩니다.'}</span></p>
+    <section><label class="who">누구신가요?<select id="who"><option value="">이름을 선택하세요</option>
       ${names.map(n => `<option ${n === me ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></section>
     <div id="form"></div>`;
   $('#who').onchange = e => { me = e.target.value; renderForm(); };
@@ -42,45 +44,80 @@ function card(ev, r) {
   const radio = (name, value, label, cur) =>
     `<label><input type="radio" name="${name}-${id}" value="${value}" ${cur === value ? 'checked' : ''}>${label}</label>`;
   return `<section class="ev" data-id="${id}">
-    <b>${esc(evName(ev))}</b>
+    <div class="ev-title"><b>${fmt(ev.date)}</b><span class="muted">${esc(ev.label)}${ev.time ? ' · ' + esc(ev.time) : ''}</span></div>
     <div class="seg">${radio('a', 'Y', '참석', r.attend)}${radio('a', 'N', '불참', r.attend)}</div>
-    <div class="absent">
-      <input class="reason" placeholder="불참 사유" maxlength="200" value="${esc(r.reason)}">
-      <div class="seg">주일 예배 참석 ${radio('s', 'Y', '가능', r.sundayOk)}${radio('s', 'N', '불가', r.sundayOk)}</div>
-    </div>
+    <div class="absent"><div>
+      <input class="reason" placeholder="불참 사유를 적어주세요" maxlength="200" value="${esc(r.reason)}">
+      <p class="q">다음날 주일 예배는 참석할 수 있나요?</p>
+      <div class="seg sub">${radio('s', 'Y', '가능', r.sundayOk)}${radio('s', 'N', '불가', r.sundayOk)}</div>
+    </div></div>
   </section>`;
 }
 
 function renderForm() {
   if (!me) return $('#form').innerHTML = '';
-  if (!D.events.length) return $('#form').innerHTML = '<section>아직 이 달의 연습 일정이 없습니다.</section>';
+  const open = D.events.filter(e => e.off !== 'TRUE');
+  if (!D.events.length) return $('#form').innerHTML = '<section class="empty">아직 이 달의 연습 일정이 없습니다.</section>';
   const mine = Object.fromEntries(D.responses.filter(r => r.name === me).map(r => [r.eventId, r]));
   const pending = D.requests.filter(q => q.name === me && q.status === 'pending');
   const evById = Object.fromEntries(D.events.map(e => [e.id, e]));
   $('#form').innerHTML =
-    (pending.length ? `<section><h2>승인 대기 중인 수정 요청</h2>${pending.map(q =>
+    (pending.length ? `<section class="pending-req"><h2>승인 대기 중인 수정 요청</h2>${pending.map(q =>
       `<div>${esc(evName(evById[q.eventId]))} → ${esc(ansText(q))}</div>`).join('')}</section>` : '') +
+    `<section><div class="head"><h2>${+$('#month').value.slice(5)}월 연습</h2><span class="muted" id="cnt"></span></div>
+      <div class="progress"><i id="prog"></i></div></section>` +
     D.events.map(ev => ev.off === 'TRUE'
-      ? `<section class="off"><b>${esc(evName(ev))}</b> · 연습 없음</section>`
+      ? `<section class="off"><b>${fmt(ev.date)}</b><span>연습 없음</span></section>`
       : card(ev, mine[ev.id] || {})).join('') +
     (D.open ? '' : '<section><input id="note" placeholder="수정 사유 (관리자에게 전달)" maxlength="200" style="width:100%"></section>') +
-    `<button id="save" class="primary">${D.open ? '저장' : '수정 요청 보내기'}</button>`;
-  $('#save').onclick = e => run(e.target, save);
+    `<button id="save" class="primary cta">${D.open ? '응답 제출하기' : '수정 요청 보내기'}</button>`;
+  // 응답한 연습 수를 진행 바로 보여준다.
+  const tick = () => {
+    const n = document.querySelectorAll('.ev:has(input[name^="a-"]:checked)').length;
+    $('#cnt').textContent = `${n} / ${open.length} 응답`;
+    $('#prog').style.width = `${open.length ? n / open.length * 100 : 0}%`;
+  };
+  $('#form').onchange = tick;
+  tick();
+  $('#save').onclick = e => run(e.target, save, D.open ? '제출 중…' : '요청 보내는 중…');
 }
 
 async function save() {
-  const answers = [...document.querySelectorAll('.ev')].map(s => ({
+  const cards = [...document.querySelectorAll('.ev')];
+  const answers = cards.map(s => ({
     eventId: s.dataset.id,
     attend: s.querySelector('[name^="a-"]:checked')?.value,
     reason: s.querySelector('.reason').value.trim(),
     sundayOk: s.querySelector('[name^="s-"]:checked')?.value,
   }));
-  if (answers.some(a => !a.attend || (a.attend === 'N' && (!a.reason || !a.sundayOk))))
-    return alert('모든 연습에 응답하고, 불참이면 사유와 주일 예배 참석 여부를 선택해 주세요.');
+  // 빠진 항목이 있으면 그 카드로 스크롤하고 흔들어서 알려준다.
+  const bad = cards.find((s, i) => !answers[i].attend || (answers[i].attend === 'N' && (!answers[i].reason || !answers[i].sundayOk)));
+  if (bad) {
+    bad.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    bad.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 280, iterations: 2 });
+    return;
+  }
   const r = await post({ action: 'respond', month: $('#month').value, name: me, answers, note: $('#note')?.value || '' });
-  alert(r.mode === 'saved' ? '저장했습니다.' : `수정 요청 ${r.count}건을 보냈습니다. 관리자 승인 후 반영됩니다.`);
-  D = await get($('#month').value);
-  render();
+  D = r.data;
+  done(r);
+}
+
+function done(r) {
+  const evById = Object.fromEntries(D.events.map(e => [e.id, e]));
+  const list = r.mode === 'saved'
+    ? D.responses.filter(x => x.name === me)
+    : D.requests.filter(q => q.name === me && q.status === 'pending');
+  window.scrollTo({ top: 0 });
+  $('#app').innerHTML = `<section class="done">
+    <div class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <h2>${r.mode === 'saved' ? '응답이 제출되었습니다' : `수정 요청 ${r.count}건을 보냈습니다`}</h2>
+    <p class="muted">${r.mode === 'saved' ? `${esc(me)} 님, 감사합니다! 조사 기간 안에는 언제든 수정할 수 있어요.` : '관리자가 승인하면 반영됩니다.'}</p>
+  </section>
+  <section class="summary"><h2>${r.mode === 'saved' ? '제출한 응답' : '보낸 요청'}</h2>
+    ${list.filter(x => evById[x.eventId]).sort((a, b) => evById[a.eventId].date.localeCompare(evById[b.eventId].date))
+      .map(x => `<div><span>${esc(evName(evById[x.eventId]))}</span><span class="pill ${x.attend === 'Y' ? 'y' : 'n'}">${esc(ansText(x))}</span></div>`).join('')}</section>
+  <button id="again" class="cta">응답 수정하기</button>`;
+  $('#again').onclick = () => { render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 }
 
 $('#month').value = nextMonth();

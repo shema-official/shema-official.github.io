@@ -6,6 +6,7 @@
 //       → 관리자가 마감한다 → 이후 멤버의 변경은 Requests 에 쌓이고, 관리자가 승인하면 Responses 에 반영된다.
 
 const HEAD = {
+  Positions: ['name', 'kind'],
   Members: ['name', 'positions', 'active'],
   Months: ['month', 'open'],
   Events: ['id', 'date', 'kind', 'label', 'time', 'off'],
@@ -15,8 +16,9 @@ const HEAD = {
 
 const SHEET_ID = '1oG1DYLqrUcUE8iKm4xuEINE91TxRow7gL_qPYituZxA'; // 구글 시트 URL의 /d/ 와 /edit 사이 값
 
+let ss_;
 function sheet_(n) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = ss_ || (ss_ = SpreadsheetApp.openById(SHEET_ID));
   let s = ss.getSheetByName(n);
   if (!s) {
     s = ss.insertSheet(n);
@@ -78,20 +80,25 @@ function upsert_(all, row) {
   else all.push(row);
 }
 
-function doGet(e) {
-  try {
-    const month = month_(e.parameter.month);
+// 화면에 필요한 한 달 치 데이터. 저장 요청의 응답에도 실어 보내서 왕복을 한 번으로 줄인다.
+function load_(month) {
     const events = read_('Events')
       .filter(ev => ev.date.startsWith(month))
       .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
     const ids = new Set(events.map(ev => ev.id));
-    return json_({
+    return {
       open: isOpen_(month),
+      positions: read_('Positions'),
       members: read_('Members'),
       events,
       responses: read_('Responses').filter(r => ids.has(r.eventId)),
       requests: read_('Requests').filter(r => ids.has(r.eventId)),
-    });
+    };
+}
+
+function doGet(e) {
+  try {
+    return json_(load_(month_(e.parameter.month)));
   } catch (err) {
     return json_({ error: err.message });
   }
@@ -104,7 +111,9 @@ function doPost(e) {
     const b = JSON.parse(e.postData.contents);
     const fn = ACTIONS[b.action];
     if (!fn) throw new Error('알 수 없는 요청입니다.');
-    return json_(fn(b) || { ok: true });
+    const out = fn(b) || { ok: true };
+    if (/^\d{4}-\d{2}$/.test(b.month || '')) out.data = load_(b.month);
+    return json_(out);
   } catch (err) {
     return json_({ error: err.message });
   } finally {
@@ -193,10 +202,24 @@ const ACTIONS = {
     write_('Events', keep.concat(mine));
   },
 
+  savePositions(b) {
+    admin_(b);
+    const seen = new Set();
+    const positions = (b.positions || [])
+      .map(p => ({ name: String(p.name || '').trim(), kind: String(p.kind || '').trim() }))
+      .filter(p => p.name && !seen.has(p.name) && seen.add(p.name));
+    write_('Positions', positions);
+  },
+
   saveMembers(b) {
     admin_(b);
+    const valid = new Set(read_('Positions').map(p => p.name));
     const members = (b.members || [])
-      .map(m => ({ name: String(m.name || '').trim(), positions: String(m.positions || ''), active: m.active ? 'TRUE' : 'FALSE' }))
+      .map(m => ({
+        name: String(m.name || '').trim(),
+        positions: [].concat(m.positions || []).filter(p => valid.has(p)).join(','),
+        active: m.active ? 'TRUE' : 'FALSE',
+      }))
       .filter(m => m.name);
     write_('Members', members);
   },
