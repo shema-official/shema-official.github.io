@@ -53,7 +53,7 @@ const act = (btn, body, msg = '저장했습니다.') => run(btn, async () => { D
 
 const del = '<button class="del p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-all" title="삭제" aria-label="삭제"><i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i></button>';
 const sw = (on, label) => `<label class="sw text-xs font-semibold text-slate-600"><input type="checkbox" ${on ? 'checked' : ''}><i></i>${label}</label>`;
-const small = 'bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white';
+const small = 'w-full min-w-0 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:bg-white';
 
 const evRow = ev => `<div data-id="${esc(ev.id)}" data-kind="${esc(ev.kind)}" class="ev p-3 sm:p-4 rounded-xl border bg-white border-slate-200 flex flex-col sm:flex-row sm:items-center gap-3 fade-in has-[.sw_:checked]:bg-slate-50 has-[.sw_:checked]:opacity-70">
   <span class="w-12 shrink-0 text-center text-[11px] font-bold px-2 py-1 rounded-md ${ev.kind === '추가' ? 'bg-violet-100 text-violet-700' : 'bg-brand-50 text-brand-700'}">${ev.kind === '추가' ? '추가' : '정기'}</span>
@@ -62,10 +62,10 @@ const evRow = ev => `<div data-id="${esc(ev.id)}" data-kind="${esc(ev.kind)}" cl
     <input value="${esc(ev.time)}" placeholder="시간 (예: 오후 4시)" class="${small} col-span-2 sm:col-span-1"></div>
   <div class="flex items-center justify-between sm:justify-end gap-3">${sw(ev.off === 'TRUE', '연습 없음')}${del}</div></div>`;
 
-const posRow = p => `<div class="pos flex items-center gap-2 fade-in">
-  <i data-lucide="grip-vertical" class="w-4 h-4 text-slate-300 shrink-0"></i>
-  <input value="${esc(p.name)}" placeholder="포지션 (예: 메인건반)" class="${small} flex-1 min-w-0">
-  <input value="${esc(p.kind)}" placeholder="종류 (예: 세션)" list="kinds" class="${small} w-28 sm:w-40">${del}</div>`;
+// 포지션은 칩으로 보여주고, 추가/삭제하면 바로 저장한다.
+const posChip = (p, i) => `<div class="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 fade-in">
+  <span>${esc(p.name)}</span>${p.kind ? `<span class="font-medium text-slate-400">${esc(p.kind)}</span>` : ''}
+  <button data-delpos="${i}" class="p-0.5 text-slate-400 hover:text-rose-600 transition-all" aria-label="${esc(p.name)} 삭제"><i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i></button></div>`;
 
 const memRow = m => `<div class="mem py-4 flex flex-col md:flex-row md:items-center gap-3 fade-in">
   <div class="flex items-center gap-3 md:w-56 shrink-0">
@@ -166,11 +166,13 @@ function render() {
     <div class="card p-5 sm:p-6">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div><h3 class="font-bold">포지션 관리</h3><p class="text-xs text-slate-500 mt-0.5">표에는 여기 등록된 포지션만 이 순서대로 나오고, 같은 종류끼리 묶입니다.</p></div>
-        <div class="flex gap-2"><button id="addPos" class="btn"><i data-lucide="plus" class="w-4 h-4"></i>포지션</button>
-          <button id="savePos" class="btn btn-primary"><i data-lucide="save" class="w-4 h-4"></i>포지션 저장</button></div>
+        <form id="posForm" class="flex items-center gap-2 w-full sm:w-auto">
+          <input id="posName" required placeholder="새 포지션" class="${small} flex-1 sm:flex-none sm:w-44">
+          <input id="posKind" placeholder="종류(보컬 등)" list="kinds" class="${small.replace('w-full ', '')} w-28 sm:w-32 shrink-0">
+          <button class="btn btn-dark shrink-0 py-2">+ 추가</button></form>
       </div>
       <datalist id="kinds">${[...new Set(D.positions.map(p => p.kind).filter(Boolean))].map(k => `<option value="${esc(k)}">`).join('')}</datalist>
-      <div id="poss" class="space-y-2">${D.positions.map(posRow).join('')}</div>
+      <div id="poss" class="flex flex-wrap gap-2">${D.positions.map(posChip).join('') || '<p class="text-sm text-slate-400">등록된 포지션이 없습니다.</p>'}</div>
     </div>
     <div class="card p-5 sm:p-6">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
@@ -243,6 +245,14 @@ function absent(evById) {
         <p class="text-xs text-slate-500 pl-3.5 mt-0.5">${esc(r.reason)}</p></div>`).join('')}</div></div>`).join('')}</div>`;
 }
 
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'posForm') return;
+  e.preventDefault();
+  const name = $('#posName').value.trim();
+  if (D.positions.some(p => p.name === name)) return toast('이미 있는 포지션입니다.', 'err');
+  act(e.submitter, { action: 'savePositions', positions: [...D.positions, { name, kind: $('#posKind').value.trim() }] }, `'${name}' 포지션을 추가했습니다.`);
+});
+
 function addSaturdays() {
   const [y, m] = M().split('-').map(Number);
   const have = new Set([...document.querySelectorAll('#evs .ev')].map(r => r.querySelector('input').value));
@@ -289,12 +299,12 @@ document.addEventListener('click', e => {
   else if (b.id === 'sat') addSaturdays();
   else if (b.id === 'addEv') add('#evs', evRow({ kind: '추가', label: '추가 연습', date: '', time: '', id: '' }));
   else if (b.id === 'saveEv') saveEvents(b);
-  else if (b.id === 'addPos') add('#poss', posRow({ name: '', kind: '' }));
+  else if (b.dataset.delpos) {
+    const p = D.positions[+b.dataset.delpos];
+    if (confirm(`'${p.name}' 포지션을 삭제할까요? 이 포지션을 가진 멤버에게서도 빠집니다.`))
+      act(b, { action: 'savePositions', positions: D.positions.filter(q => q !== p) }, '포지션을 삭제했습니다.');
+  }
   else if (b.id === 'addMem') add('#mems', memRow({ name: '', positions: '', active: 'TRUE' }));
-  else if (b.id === 'savePos') act(b, { action: 'savePositions', positions: [...document.querySelectorAll('#poss .pos')].map(r => {
-    const [n, k] = r.querySelectorAll('input');
-    return { name: n.value, kind: k.value };
-  }) }, '포지션을 저장했습니다.');
   else if (b.id === 'saveMem') act(b, { action: 'saveMembers', members: [...document.querySelectorAll('#mems .mem')].map(r => ({
     name: r.querySelector('input').value,
     positions: [...r.querySelectorAll('label:not(.sw) input:checked')].map(c => c.value),

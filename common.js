@@ -86,6 +86,6 @@ function header(sub) {
         <div class="min-w-0"><h1 class="font-bold text-base sm:text-lg tracking-tight truncate">찬양팀 연습 참여 조사</h1>
           <p class="text-xs text-slate-500 hidden sm:block">${sub}</p></div>
       </div>
-      <input type="month" id="month" aria-label="조사 월" class="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500">
+      <input type="month" id="month" aria-label="조사 월" class="w-36 sm:w-auto shrink-0 bg-white border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500">
     </div></header>`);
 }
