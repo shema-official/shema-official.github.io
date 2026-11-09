@@ -64,7 +64,7 @@ const evRow = ev => `<div data-id="${esc(ev.id)}" data-kind="${esc(ev.kind)}" cl
 
 // 포지션은 칩으로 보여주고, 추가/삭제하면 바로 저장한다.
 const posChip = (p, i) => `<div class="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-bold text-slate-800 fade-in">
-  <span>${esc(p.name)}</span>${p.kind ? `<span class="font-medium text-slate-400">${esc(p.kind)}</span>` : ''}
+  <span>${esc(p.name)}</span>
   <button data-delpos="${i}" class="p-0.5 text-slate-400 hover:text-rose-600 transition-all" aria-label="${esc(p.name)} 삭제"><i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i></button></div>`;
 
 const memRow = m => `<div class="mem py-4 flex flex-col md:flex-row md:items-center gap-3 fade-in">
@@ -165,13 +165,11 @@ function render() {
   <div data-pane="team" class="space-y-6">
     <div class="card p-5 sm:p-6">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-        <div><h3 class="font-bold">포지션 관리</h3><p class="text-xs text-slate-500 mt-0.5">표에는 여기 등록된 포지션만 이 순서대로 나오고, 같은 종류끼리 묶입니다.</p></div>
+        <div><h3 class="font-bold">포지션 관리</h3><p class="text-xs text-slate-500 mt-0.5">표에는 여기 등록된 포지션만 이 순서대로 나옵니다.</p></div>
         <form id="posForm" class="flex items-center gap-2 w-full sm:w-auto">
           <input id="posName" required placeholder="새 포지션" class="${small} flex-1 sm:flex-none sm:w-44">
-          <input id="posKind" placeholder="종류(보컬 등)" list="kinds" class="${small.replace('w-full ', '')} w-28 sm:w-32 shrink-0">
           <button class="btn btn-dark shrink-0 py-2">+ 추가</button></form>
       </div>
-      <datalist id="kinds">${[...new Set(D.positions.map(p => p.kind).filter(Boolean))].map(k => `<option value="${esc(k)}">`).join('')}</datalist>
       <div id="poss" class="flex flex-wrap gap-2">${D.positions.map(posChip).join('') || '<p class="text-sm text-slate-400">등록된 포지션이 없습니다.</p>'}</div>
     </div>
     <div class="card p-5 sm:p-6">
@@ -219,17 +217,14 @@ function table1(open) {
   if (!D.positions.length) return '<p class="text-sm text-slate-500">포지션을 먼저 등록하세요.</p>';
   const byName = Object.fromEntries(D.members.map(m => [m.name, posOf(m)]));
   const cols = open.map(ev => D.responses.filter(r => r.eventId === ev.id && r.attend === 'Y').map(r => r.name));
-  // 종류가 같은 포지션은 묶어서 종류 칸을 합친다.
-  const kindSpan = (p, i) => i > 0 && D.positions[i - 1].kind === p.kind ? ''
-    : `<th class="px-3 py-2.5 bg-slate-50 text-xs font-bold text-slate-500 border-r border-slate-200 align-middle" rowspan="${(k => k < 0 ? D.positions.length - i : k)(D.positions.slice(i).findIndex(q => q.kind !== p.kind))}">${esc(p.kind)}</th>`;
   return `<div class="overflow-hidden rounded-2xl border border-slate-200"><table class="w-full text-left border-collapse text-sm">
-    <thead><tr class="bg-slate-900 text-white text-xs"><th class="px-3 py-3">종류</th><th class="px-3 py-3">포지션</th>${open.map(ev =>
+    <thead><tr class="bg-slate-900 text-white text-xs"><th class="px-3 py-3">포지션</th>${open.map(ev =>
       `<th class="px-3 py-3 text-center">${fmt(ev.date)}<div class="font-normal text-slate-300 mt-0.5">${esc(ev.label)}</div></th>`).join('')}</tr></thead>
-    <tbody class="divide-y divide-slate-200">${D.positions.map((p, i) => `<tr>${kindSpan(p, i)}<th class="px-3 py-2.5 font-bold whitespace-nowrap">${esc(p.name)}</th>${cols.map(ns => {
+    <tbody class="divide-y divide-slate-200">${D.positions.map((p, i) => `<tr><th class="px-3 py-2.5 font-bold whitespace-nowrap">${esc(p.name)}</th>${cols.map(ns => {
       const who = ns.filter(n => byName[n]?.includes(p.name));
       return `<td class="px-3 py-2.5 text-center ${who.length ? '' : 'text-slate-300'}">${who.map(esc).join('<br>') || '—'}</td>`;
     }).join('')}</tr>`).join('')}
-    <tr class="bg-brand-50 font-bold text-brand-700"><th colspan="2" class="px-3 py-2.5">참석 인원</th>${cols.map(ns => `<td class="px-3 py-2.5 text-center">${ns.length}명</td>`).join('')}</tr></tbody></table></div>`;
+    <tr class="bg-brand-50 font-bold text-brand-700"><th class="px-3 py-2.5">참석 인원</th>${cols.map(ns => `<td class="px-3 py-2.5 text-center">${ns.length}명</td>`).join('')}</tr></tbody></table></div>`;
 }
 
 function absent(evById) {
@@ -250,7 +245,7 @@ document.addEventListener('submit', e => {
   e.preventDefault();
   const name = $('#posName').value.trim();
   if (D.positions.some(p => p.name === name)) return toast('이미 있는 포지션입니다.', 'err');
-  act(e.submitter, { action: 'savePositions', positions: [...D.positions, { name, kind: $('#posKind').value.trim() }] }, `'${name}' 포지션을 추가했습니다.`);
+  act(e.submitter, { action: 'savePositions', positions: [...D.positions, { name, kind: '' }] }, `'${name}' 포지션을 추가했습니다.`);
 });
 
 function addSaturdays() {
