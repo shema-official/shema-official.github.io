@@ -4,6 +4,7 @@
 - `admin.html`: 관리자 페이지 (조사 열기/마감, 수정 요청 승인, 일정·멤버 관리, 표 생성·PNG 저장)
 - `Code.gs`: 구글 시트에 붙는 Apps Script API
 - `common.js`: 두 페이지 공용 (API 주소, Tailwind 설정, 공통 스타일)
+- `sheet.js`: 연습표와 멤버 캐릭터·색상 (두 페이지 공용)
 
 ## 월별 운영 흐름
 1. 관리자: 월 선택 → **토요일 자동 추가** → 연습 없는 주 체크, 추가 연습 입력 → **일정 저장**
@@ -21,7 +22,7 @@
    - 다음 사용자 인증 정보로 실행: **나**
    - 액세스 권한: **모든 사용자**
    - 배포 후 나오는 `https://script.google.com/macros/s/.../exec` URL을 복사합니다.
-5. `common.js`의 `API` 값을 그 URL로 바꿉니다. 필요하면 `POSITIONS`(포지션 순서)도 팀에 맞게 고칩니다.
+5. `common.js`의 `API` 값을 그 URL로 바꿉니다.
 6. GitHub에 새 공개 저장소를 만들어 이 폴더 파일을 올리고, **Settings → Pages → Branch: main / root**로 켭니다.
    - 멤버용: `https://<아이디>.github.io/<저장소>/`
    - 관리자용: `https://<아이디>.github.io/<저장소>/admin.html`
