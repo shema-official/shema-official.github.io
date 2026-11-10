@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <script src="https://cdn.tailwindcss.com/3.4.16"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.js"></script>
 <script src="common.js"></script>
 </head>
 <body class="selection:bg-brand-100 selection:text-brand-700">
@@ -185,8 +185,9 @@ function render() {
   <div data-pane="table" class="space-y-6">
     <div class="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
       <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center shrink-0"><i data-lucide="share-2" class="w-5 h-5"></i></div>
-        <div><h3 class="font-bold text-sm sm:text-base">단톡방 공유용 연습 참여표</h3><p class="text-xs text-slate-500">아래 카드가 그대로 PNG 이미지로 저장됩니다.</p></div></div>
-      <button id="png" class="btn btn-primary"><i data-lucide="download" class="w-4 h-4"></i>PNG 이미지로 저장</button>
+        <div><h3 class="font-bold text-sm sm:text-base">단톡방 공유용 연습 참여표</h3><p class="text-xs text-slate-500">아래 카드가 그대로 이미지로 만들어집니다.</p></div></div>
+      <div class="grid grid-cols-2 sm:flex gap-2"><button id="copy" class="btn"><i data-lucide="clipboard-copy" class="w-4 h-4"></i>클립보드에 복사</button>
+        <button id="png" class="btn btn-primary"><i data-lucide="download" class="w-4 h-4"></i>PNG로 저장</button></div>
     </div>
     <div class="overflow-x-auto pb-4"><div id="capture" class="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 min-w-[720px] space-y-8">${sheet(open, evById)}</div></div>
   </div>`;
@@ -308,14 +309,23 @@ document.addEventListener('click', e => {
     positions: [...r.querySelectorAll('label:not(.sw) input:checked')].map(c => c.value),
     active: r.querySelector('.sw input').checked,
   })) }, '멤버를 저장했습니다.');
+  else if (b.id === 'copy') run(b, async () => {
+    // Safari 는 사용자 클릭 직후에 write 를 불러야 해서 Blob 대신 Promise 를 넘긴다.
+    try { await navigator.clipboard.write([new ClipboardItem({ 'image/png': shot() })]); }
+    catch { throw new Error('이 브라우저에서는 이미지 복사가 막혀 있어요. PNG로 저장을 이용해주세요.'); }
+    toast('표 이미지를 복사했습니다. 단톡방에 붙여 넣으세요.', 'ok');
+  }, '이미지 만드는 중…');
   else if (b.id === 'png') run(b, async () => {
-    const c = await html2canvas($('#capture'), { scale: 2, backgroundColor: '#fff' });
     const a = document.createElement('a');
-    a.href = c.toDataURL('image/png');
+    a.href = URL.createObjectURL(await shot());
     a.download = `${M()}-연습참여표.png`;
     a.click();
   }, '이미지 만드는 중…');
 });
+
+// html-to-image 는 브라우저가 그린 모습을 그대로 이미지로 만든다(html2canvas 는 글자 위치가 어긋났다).
+// 가로 스크롤 상자 안에서 잘리지 않도록 캡처 영역 전체 너비로 그린다.
+const shot = () => { const el = $('#capture'); return htmlToImage.toBlob(el, { pixelRatio: 2, backgroundColor: '#fff', width: el.scrollWidth, height: el.scrollHeight }); };
 
 $('#month').value = nextMonth();
 $('#month').onchange = load;
