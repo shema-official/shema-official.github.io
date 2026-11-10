@@ -73,7 +73,7 @@ function answer_(a, name, mine) {
   if (a.attend !== 'Y' && a.attend !== 'N') throw new Error('참석 여부를 선택하세요.');
   const no = a.attend === 'N';
   const roles = no ? [] : [].concat(a.roles || []).filter(p => mine.includes(p));
-  if (!no && !roles.length) throw new Error('참석할 역할을 선택하세요.');
+  if (!no && roles.length !== 1) throw new Error('참석할 역할을 하나 선택하세요.');
   return {
     roles: roles.join(','),
     eventId: String(a.eventId),
