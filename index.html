@@ -37,6 +37,10 @@ function route() {
   const { m, page } = parseHash();
   view = page || 'menu';
   setCrumb(m);
+  // 연습표는 관리자 화면과 같은 폭(max-w-5xl)으로 넓게 보여준다.
+  const wide = view === 'schedule';
+  document.querySelector('main').classList.toggle('max-w-5xl', wide);
+  document.querySelector('main').classList.toggle('max-w-2xl', !wide);
   enter();
   window.scrollTo({ top: 0 });
   if (!m) { $('#month').value = ''; return monthHome('어느 달 일정인가요?', '달을 고르면 참석 여부를 등록하거나 연습표를 확인할 수 있어요.'); }
