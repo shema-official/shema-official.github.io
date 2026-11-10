@@ -124,6 +124,29 @@ function doGet(e) {
   }
 }
 
+// 마감 후 수정 요청이 들어오면 관리자에게 메일을 보낸다. 메일이 실패해도 요청 저장은 유지한다.
+const NOTIFY_TO = 'uu007007007@gmail.com';
+function notify_(month, name, changed, cur, note) {
+  try {
+    const evs = read_('Events');
+    const txt = r => !r ? '(응답 없음)' : r.attend === 'Y' ? `참석 (${r.roles || '역할 없음'})` : `불참 - ${r.reason || '사유 없음'} / 주일 ${r.sundayOk === 'Y' ? '가능' : '불가'}`;
+    const lines = changed.map(r => {
+      const ev = evs.find(e => e.id === r.eventId) || {};
+      const before = cur.find(c => c.eventId === r.eventId && c.name === r.name);
+      return `■ ${ev.date || r.eventId} ${ev.label || ''}\n  기존: ${txt(before)}\n  변경: ${txt(r)}`;
+    });
+    MailApp.sendEmail(NOTIFY_TO, `[쉐마] ${name}님 ${+month.slice(5)}월 일정 수정 요청 (${changed.length}건)`,
+      `${name}님이 ${month} 연습 일정 수정을 요청했습니다.\n\n${lines.join('\n\n')}\n\n메모: ${note || '-'}\n\n승인/반려: https://shema-official.github.io/admin.html#/${month}`);
+  } catch (err) {
+    console.error('메일 발송 실패: ' + err.message);
+  }
+}
+
+// 편집기에서 한 번 실행해 메일 권한을 승인하고 테스트 메일을 받는다.
+function testNotify() {
+  MailApp.sendEmail(NOTIFY_TO, '[쉐마] 알림 테스트', '수정 요청 알림이 이 주소로 옵니다.');
+}
+
 function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
@@ -182,6 +205,7 @@ const ACTIONS = {
       createdAt: now,
     }));
     write_('Requests', reqs);
+    notify_(month, b.name, changed, cur, b.note);
     return { ok: true, mode: 'requested', count: changed.length };
   },
 
