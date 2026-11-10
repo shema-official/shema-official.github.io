@@ -64,7 +64,6 @@ function render() {
 }
 
 // 마감 후에는 연습표를 보여주고, 조사 중에는 아직 확정 전이라고 알린다.
-// 불참 사유는 멤버끼리 보이지 않도록 참석 현황표만 공개한다.
 function schedule() {
   const mon = +M().slice(5);
   if (D.open || !practices().length) return `<div class="card p-5 sm:p-6 fade-in flex items-center gap-3.5">
@@ -74,7 +73,8 @@ function schedule() {
     <div class="flex items-center justify-between mb-4"><div><span class="eyebrow text-brand-600">Schedule</span><h2 class="text-lg font-bold mt-0.5">${mon}월 연습표</h2></div>
       <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">연습 ${practices().length}회</span></div>
     <div class="overflow-x-auto -mx-1 px-1 pb-1"><div style="min-width:${Math.max(320, 120 + practices().length * 110)}px">${table1(practices())}</div></div>
-    <p class="text-[11px] text-slate-400 mt-2">수정 요청이 승인되거나 일정이 바뀌면 이 표에 바로 반영됩니다.</p></div>`;
+    <div class="mt-6">${section('rose', '불참자와 주일 예배 참석 여부', absent())}</div>
+    <p class="text-[11px] text-slate-400 mt-3">수정 요청이 승인되거나 일정이 바뀌면 이 표에 바로 반영됩니다.</p></div>`;
 }
 
 function renderArea() {
