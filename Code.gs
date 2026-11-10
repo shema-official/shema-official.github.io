@@ -66,11 +66,8 @@ function isOpen_(month) {
 function answer_(a, name, mine) {
   if (a.attend !== 'Y' && a.attend !== 'N') throw new Error('참석 여부를 선택하세요.');
   const no = a.attend === 'N';
-  let roles = no ? [] : [].concat(a.roles || []).filter(p => mine.includes(p));
-  if (!no && !roles.length) {
-    if (mine.length > 1) throw new Error('참석할 역할을 선택하세요.');
-    roles = mine;
-  }
+  const roles = no ? [] : [].concat(a.roles || []).filter(p => mine.includes(p));
+  if (!no && !roles.length) throw new Error('참석할 역할을 선택하세요.');
   return {
     roles: roles.join(','),
     eventId: String(a.eventId),
@@ -144,6 +141,7 @@ const ACTIONS = {
       if (!open.has(a.eventId)) throw new Error('없는 일정입니다. 새로고침 후 다시 시도하세요.');
       return answer_(a, b.name, mine);
     });
+    if (new Set(rows.map(r => r.eventId)).size !== open.size) throw new Error('모든 연습에 응답해주세요.');
     const now = new Date().toISOString();
 
     if (isOpen_(month)) {
