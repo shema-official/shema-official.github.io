@@ -52,8 +52,24 @@ async function call(res) {
   return j;
 }
 const get = month => call(fetch(`${API}?month=${month}`));
+const remember = (month, data) => { try { localStorage.setItem('data:' + month, JSON.stringify(data)); } catch {} };
 // text/plain 본문이라 CORS preflight 없이 Apps Script로 보낼 수 있다.
-const post = body => call(fetch(API, { method: 'POST', body: JSON.stringify(body) }));
+// keepalive: 제출 직후 창을 닫아도 요청이 끝까지 전송된다.
+const post = async body => {
+  const r = await call(fetch(API, { method: 'POST', body: JSON.stringify(body), keepalive: true }));
+  if (r.data && body.month) remember(body.month, r.data);
+  return r;
+};
+
+// 이 브라우저가 마지막으로 받은 데이터를 먼저 그리고, 서버 응답이 오면 달라졌을 때만 다시 그린다.
+async function fetchMonth(month, show) {
+  let old = null;
+  try { old = localStorage.getItem('data:' + month); } catch {}
+  if (old) show(JSON.parse(old));
+  const fresh = await get(month);
+  remember(month, fresh);
+  if (JSON.stringify(fresh) !== old && month === $('#month').value) show(fresh);
+}
 
 const TOAST = { ok: 'bg-emerald-600', err: 'bg-rose-600', info: 'bg-slate-900' };
 function toast(msg, kind = 'info') {

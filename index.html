@@ -26,7 +26,8 @@ const posText = name => (D.members.find(m => m.name === name)?.positions || '').
 
 async function load() {
   $('#app').innerHTML = SKELETON;
-  try { D = await get(M()); editing = false; render(); }
+  editing = false;
+  try { await fetchMonth(M(), d => { D = d; render(); }); }
   catch (e) { $('#app').innerHTML = `<div class="card p-8 text-center text-sm text-slate-500">불러오지 못했습니다: ${esc(e.message)}</div>`; }
 }
 
@@ -168,7 +169,29 @@ async function save() {
     el.animate([{ transform: 'none' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'none' }], { duration: 280, iterations: 2 });
     return toast(noRole(bad) ? '참석할 역할을 선택해주세요.' : bad.attend ? '불참 사유와 주일 예배 참석 여부를 알려주세요.' : '참석 여부를 선택하지 않은 연습이 있어요.', 'err');
   }
-  const r = await post({ action: 'respond', month: M(), name: me, answers: answers.map(a => ({ ...a, reason: a.reason?.trim() })), note: $('#note')?.value || '' });
+  const body = { action: 'respond', month: M(), name: me, answers: answers.map(a => ({ ...a, reason: a.reason?.trim() })), note: $('#note')?.value || '' };
+  if (D.open) {
+    // 조사 중에는 결과를 먼저 보여주고 서버 저장은 뒤에서 기다린다. 실패하면 입력 화면으로 되돌린다.
+    const prev = D, who = me, now = new Date().toISOString();
+    D = { ...D, responses: D.responses.filter(r => r.name !== me).concat(body.answers.map(a => {
+      const no = a.attend === 'N';
+      return { eventId: a.eventId, name: me, attend: a.attend, reason: no ? a.reason : '', sundayOk: no ? a.sundayOk : '', roles: no ? '' : a.roles.join(','), updatedAt: now };
+    })) };
+    editing = false;
+    render();
+    $('#area').innerHTML = summary(true);
+    icons();
+    $('#area').scrollIntoView({ behavior: 'smooth' });
+    toast('응답이 제출되었습니다. 감사합니다!', 'ok');
+    post(body).then(r => { D = r.data; }).catch(e => {
+      D = prev; me = who; editing = true;
+      render();
+      $('#area').scrollIntoView({ behavior: 'smooth' });
+      toast(`저장하지 못했어요. 다시 제출해주세요. (${e.message})`, 'err');
+    });
+    return;
+  }
+  const r = await post(body);
   D = r.data;
   editing = false;
   render();

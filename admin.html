@@ -26,7 +26,7 @@ const TABS = [['home', '현황', 'activity'], ['sched', '일정', 'calendar-days
 async function load() {
   if (!pw) return renderLogin();
   $('#app').innerHTML = SKELETON;
-  try { D = await get(M()); render(); }
+  try { await fetchMonth(M(), d => { D = d; render(); }); }
   catch (e) { $('#app').innerHTML = `<div class="card p-8 text-center text-sm text-slate-500">불러오기 실패: ${esc(e.message)}</div>`; }
 }
 

@@ -28,14 +28,20 @@ function sheet_(n) {
   return s;
 }
 
+// 한 요청 안에서 같은 탭을 여러 번 읽지 않도록 기억해 둔다. write_ 가 해당 탭을 비운다.
+const memo_ = {};
 function read_(n) {
-  const v = sheet_(n).getDataRange().getDisplayValues();
-  const h = v.shift();
-  return v.filter(r => r[0] !== '').map(r => Object.fromEntries(h.map((k, i) => [k, r[i]])));
+  if (!memo_[n]) {
+    const v = sheet_(n).getDataRange().getDisplayValues();
+    const h = v.shift();
+    memo_[n] = v.filter(r => r[0] !== '').map(r => Object.fromEntries(h.map((k, i) => [k, r[i]])));
+  }
+  return memo_[n].map(o => ({ ...o }));
 }
 
 // ponytail: 탭 전체를 다시 쓴다. 팀 규모(수십 명 × 월 5~6회)에서는 충분하고, 수천 행을 넘으면 행 단위 수정으로 바꾼다.
 function write_(n, objs) {
+  delete memo_[n];
   const s = sheet_(n);
   s.getRange(1, 1, 1, HEAD[n].length).setValues([HEAD[n]]); // 열이 추가된 기존 탭도 머리글을 맞춘다
   if (s.getLastRow() > 1) s.getRange(2, 1, s.getLastRow() - 1, HEAD[n].length).clearContent();
@@ -100,9 +106,19 @@ function load_(month) {
     };
 }
 
+// 조회 결과를 5분간 캐시한다. 앱에서 저장하면 ver 가 바뀌어 바로 새로 읽는다.
+// ponytail: 시트를 손으로 고친 내용은 최대 5분 늦게 보인다.
+const TTL = 300;
 function doGet(e) {
   try {
-    return json_(load_(month_(e.parameter.month)));
+    const month = month_(e.parameter.month);
+    const c = CacheService.getScriptCache();
+    const ver = c.get('ver') || '0';
+    const hit = c.get(month + ':' + ver);
+    if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON);
+    const out = JSON.stringify(load_(month));
+    if (out.length < 90000) c.put(month + ':' + ver, out, TTL);
+    return ContentService.createTextOutput(out).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return json_({ error: err.message });
   }
@@ -116,6 +132,7 @@ function doPost(e) {
     const fn = ACTIONS[b.action];
     if (!fn) throw new Error('알 수 없는 요청입니다.');
     const out = fn(b) || { ok: true };
+    CacheService.getScriptCache().put('ver', Utilities.getUuid(), 21600);
     if (/^\d{4}-\d{2}$/.test(b.month || '')) out.data = load_(b.month);
     return json_(out);
   } catch (err) {
