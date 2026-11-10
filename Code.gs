@@ -7,7 +7,7 @@
 
 const HEAD = {
   Positions: ['name', 'kind'],
-  Members: ['name', 'positions', 'active'],
+  Members: ['name', 'positions', 'active', 'color', 'emoji'],
   Months: ['month', 'open'],
   Events: ['id', 'date', 'kind', 'label', 'time', 'off'],
   Responses: ['eventId', 'name', 'attend', 'reason', 'sundayOk', 'updatedAt', 'roles'],
@@ -243,6 +243,8 @@ const ACTIONS = {
         name: String(m.name || '').trim(),
         positions: [].concat(m.positions || []).filter(p => valid.has(p)).join(','),
         active: m.active ? 'TRUE' : 'FALSE',
+        color: /^#[0-9a-f]{6}$/i.test(m.color || '') ? m.color : '',
+        emoji: [...String(m.emoji || '').trim()].slice(0, 8).join(''),
       }))
       .filter(m => m.name);
     write_('Members', members);

@@ -67,10 +67,19 @@ const posChip = (p, i) => `<div class="inline-flex items-center gap-1.5 pl-3 pr-
   <span>${esc(p.name)}</span>
   <button data-delpos="${i}" class="p-0.5 text-slate-400 hover:text-rose-600 transition-all" aria-label="${esc(p.name)} 삭제"><i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i></button></div>`;
 
+// 멤버 색상: 지정하지 않았으면 이름으로 팔레트에서 하나 고른다.
+const PALETTE = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ef4444', '#14b8a6', '#f97316', '#84cc16'];
+const colorOf = m => m?.color || PALETTE[[...(m?.name || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
+const avatar = m => `<span class="avatar w-9 h-9 shrink-0 rounded-xl font-bold text-sm flex items-center justify-center" style="background:${colorOf(m)}26;box-shadow:inset 0 0 0 2px ${colorOf(m)}">${esc(m.emoji || m.name.charAt(0)) || '?'}</span>`;
+// 표에 들어가는 이름 배지
+const tag = name => { const m = D.members.find(x => x.name === name) || { name }, c = colorOf(m);
+  return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold text-slate-800 whitespace-nowrap" style="background:${c}26;box-shadow:inset 3px 0 0 ${c}">${m.emoji ? `<span>${esc(m.emoji)}</span>` : ''}${esc(name)}</span>`; };
 const memRow = m => `<div class="mem py-4 flex flex-col md:flex-row md:items-center gap-3 fade-in">
-  <div class="flex items-center gap-3 md:w-56 shrink-0">
-    <div class="w-9 h-9 shrink-0 rounded-xl bg-brand-50 text-brand-700 font-bold text-sm flex items-center justify-center">${esc(m.name.charAt(0)) || '?'}</div>
-    <input value="${esc(m.name)}" placeholder="이름" class="${small} flex-1 min-w-0 font-bold"></div>
+  <div class="flex items-center gap-2 md:w-72 shrink-0">
+    ${avatar(m)}
+    <input value="${esc(m.name)}" placeholder="이름" class="${small} flex-1 min-w-0 font-bold">
+    <input value="${esc(m.emoji)}" placeholder="🙂" title="캐릭터(이모지)" aria-label="캐릭터" class="emo ${small} !w-12 shrink-0 text-center px-1">
+    <input type="color" value="${colorOf(m)}" title="색상" aria-label="색상" class="clr w-9 h-9 shrink-0 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"></div>
   <div class="flex flex-wrap gap-1.5 flex-1">${D.positions.map(p => `<label class="cursor-pointer px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all bg-white text-slate-600 border-slate-200 hover:border-slate-300 has-[:checked]:bg-brand-600 has-[:checked]:text-white has-[:checked]:border-brand-600">
     <input type="checkbox" class="sr-only" value="${esc(p.name)}" ${posOf(m).includes(p.name) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="text-xs text-slate-400">포지션을 먼저 등록하세요</span>'}</div>
   <div class="flex items-center justify-between md:justify-end gap-3">${sw(m.active !== 'FALSE', '활동')}${del}</div></div>`;
@@ -239,7 +248,7 @@ function table1(open) {
       `<th class="px-3 py-3 text-center">${fmt(ev.date)}<div class="font-normal text-slate-300 mt-0.5">${esc(ev.label)}</div></th>`).join('')}</tr></thead>
     <tbody class="divide-y divide-slate-200">${D.positions.map((p, i) => `<tr><th class="px-3 py-2.5 font-bold whitespace-nowrap">${esc(p.name)}</th>${cols.map(ns => {
       const who = ns.filter(r => roles(r).includes(p.name)).map(r => r.name);
-      return who.length ? `<td class="px-3 py-2.5 text-center">${who.map(esc).join('<br>')}</td>`
+      return who.length ? `<td class="px-3 py-2.5 text-center"><div class="flex flex-col items-center gap-1">${who.map(tag).join('')}</div></td>`
         : '<td class="px-3 py-2.5 text-center bg-rose-50/60"><span class="text-[11px] font-bold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-md">공석</span></td>';
     }).join('')}</tr>`).join('')}
     <tr class="bg-brand-50 font-bold text-brand-700"><th class="px-3 py-2.5">참석 인원</th>${cols.map(ns => `<td class="px-3 py-2.5 text-center">${ns.length}명</td>`).join('')}</tr></tbody></table></div>`;
@@ -254,7 +263,7 @@ function absent(evById) {
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">${days.map(([ev, rs]) => `<div class="rounded-2xl border border-slate-200 overflow-hidden">
       <div class="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200"><b class="text-sm">${fmt(ev.date)}</b> <span class="text-xs text-slate-500">${esc(ev.label)}</span></div>
       <div class="p-3.5 space-y-2.5">${rs.map(r => `<div><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full shrink-0 ${r.sundayOk === 'Y' ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
-        <b class="text-sm">${esc(r.name)}</b><span class="text-[11px] text-slate-400">${esc(posOf(byName[r.name]).join('·'))}</span></div>
+        <span class="text-sm">${tag(r.name)}</span><span class="text-[11px] text-slate-400">${esc(posOf(byName[r.name]).join('·'))}</span></div>
         <p class="text-xs text-slate-500 pl-3.5 mt-0.5">${esc(r.reason)}</p></div>`).join('')}</div></div>`).join('')}</div>`;
 }
 
@@ -322,6 +331,8 @@ document.addEventListener('click', e => {
     name: r.querySelector('input').value,
     positions: [...r.querySelectorAll('label:not(.sw) input:checked')].map(c => c.value),
     active: r.querySelector('.sw input').checked,
+    color: r.querySelector('.clr').value,
+    emoji: r.querySelector('.emo').value,
   })) }, '멤버를 저장했습니다.');
   else if (b.id === 'copy') run(b, async () => {
     // Safari 는 사용자 클릭 직후에 write 를 불러야 해서 Blob 대신 Promise 를 넘긴다.
@@ -340,6 +351,12 @@ document.addEventListener('click', e => {
 // html-to-image 는 브라우저가 그린 모습을 그대로 이미지로 만든다(html2canvas 는 글자 위치가 어긋났다).
 // 가로 스크롤 상자 안에서 잘리지 않도록 캡처 영역 전체 너비로 그린다.
 const shot = () => { const el = $('#capture'); return htmlToImage.toBlob(el, { pixelRatio: 2, backgroundColor: '#fff', width: el.scrollWidth, height: el.scrollHeight }); };
+
+// 멤버 행의 이름·캐릭터·색상을 바꾸면 미리보기를 바로 갱신한다.
+document.addEventListener('input', e => {
+  const r = e.target.closest('.mem');
+  if (r) r.querySelector('.avatar').outerHTML = avatar({ name: r.querySelector('input').value, emoji: r.querySelector('.emo').value, color: r.querySelector('.clr').value });
+});
 
 $('#month').value = nextMonth();
 $('#month').onchange = load;
