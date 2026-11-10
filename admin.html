@@ -67,22 +67,69 @@ const posChip = (p, i) => `<div class="inline-flex items-center gap-1.5 pl-3 pr-
   <span>${esc(p.name)}</span>
   <button data-delpos="${i}" class="p-0.5 text-slate-400 hover:text-rose-600 transition-all" aria-label="${esc(p.name)} 삭제"><i data-lucide="x" class="w-3.5 h-3.5 pointer-events-none"></i></button></div>`;
 
-// 멤버 색상: 지정하지 않았으면 이름으로 팔레트에서 하나 고른다.
-const PALETTE = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6', '#ef4444', '#14b8a6', '#f97316', '#84cc16'];
-const colorOf = m => m?.color || PALETTE[[...(m?.name || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % PALETTE.length];
-const avatar = m => `<span class="avatar w-9 h-9 shrink-0 rounded-xl font-bold text-sm flex items-center justify-center" style="background:${colorOf(m)}26;box-shadow:inset 0 0 0 2px ${colorOf(m)}">${esc(m.emoji || m.name.charAt(0)) || '?'}</span>`;
+// 멤버 색상 36가지: 진한 색 18 + 파스텔 18. 지정하지 않았으면 이름으로 하나 고른다.
+const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6', '#06b6d4',
+  '#0ea5e9', '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899', '#f43f5e', '#78716c',
+  '#fca5a5', '#fdba74', '#fcd34d', '#fde047', '#bef264', '#86efac', '#6ee7b7', '#5eead4', '#67e8f9',
+  '#7dd3fc', '#93c5fd', '#a5b4fc', '#c4b5fd', '#d8b4fe', '#f0abfc', '#f9a8d4', '#fda4af', '#d6d3d1'];
+const colorOf = m => m?.color || COLORS[[...(m?.name || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 18];
+
+// 사람 캐릭터 20개: 머리 모양 5가지 × 피부·머리색 4가지. 멤버의 emoji 칸에 'c:번호'로 저장한다.
+const LOOKS = [['#f9d7bd', '#3b2a20'], ['#efc19f', '#7a4a2a'], ['#d39a72', '#1f1a17'], ['#f9d7bd', '#d9a441']];
+const SHORT = h => `<path d="M12 18c0-6.5 3.6-10 8-10s8 3.5 8 10c-1.8-3.4-4.6-4.6-8-4.6s-6.2 1.2-8 4.6z" fill="${h}"/>`;
+const HAIR = [
+  SHORT,
+  SHORT, // 긴 머리: 뒷머리는 따로 그린다
+  h => `<circle cx="20" cy="7.5" r="3.6" fill="${h}"/>` + SHORT(h),
+  h => [[12.5, 16], [14.5, 11.5], [20, 9.5], [25.5, 11.5], [27.5, 16]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="3.6" fill="${h}"/>`).join(''),
+  h => `<path d="M12 17l1.5-6.5 3 3 3.5-5.5 3.5 5.5 3-3 1.5 6.5c-2.2-2-5-3-8-3s-5.8 1-8 3z" fill="${h}"/>`,
+];
+const CHARS = Array.from({ length: 20 }, (_, i) => {
+  const [skin, hair] = LOOKS[Math.floor(i / 5)], style = i % 5;
+  return `<svg viewBox="0 0 40 40" class="w-full h-full" aria-hidden="true">`
+    + (style === 1 ? `<path d="M11 19c0-7.5 4-11 9-11s9 3.5 9 11v9h-4v-9h-10v9h-4z" fill="${hair}"/>` : '')
+    + `<path d="M7 40c0-7.5 5.8-12.5 13-12.5S33 32.5 33 40z" fill="#fff" fill-opacity=".9"/>`
+    + `<rect x="17.5" y="23" width="5" height="6" rx="2" fill="${skin}"/>`
+    + `<circle cx="20" cy="18" r="8" fill="${skin}"/>`
+    + HAIR[style](hair)
+    + `<circle cx="17" cy="18.5" r="1.1" fill="#2b2118"/><circle cx="23" cy="18.5" r="1.1" fill="#2b2118"/>`
+    + `<circle cx="15.3" cy="21" r="1.3" fill="#f472b6" fill-opacity=".35"/><circle cx="24.7" cy="21" r="1.3" fill="#f472b6" fill-opacity=".35"/>`
+    + `<path d="M17.6 21.6q2.4 2 4.8 0" stroke="#2b2118" stroke-width="1.1" fill="none" stroke-linecap="round"/>`
+    + (i % 3 === 2 ? `<g stroke="#2b2118" stroke-width=".9" fill="none"><circle cx="17" cy="18.5" r="2.4"/><circle cx="23" cy="18.5" r="2.4"/><path d="M19.4 18.5h1.2"/></g>` : '')
+    + `</svg>`;
+});
+// emoji 칸: 'c:번호'면 캐릭터 그림, 예전 이모지 글자면 그 글자, 없으면 이름 첫 글자
+const face = m => {
+  const n = /^c:(\d+)$/.exec(m.emoji || '')?.[1];
+  return CHARS[n] || `<span>${esc(m.emoji || m.name.charAt(0)) || '?'}</span>`;
+};
+const avatar = m => `<span class="avatar w-9 h-9 shrink-0 rounded-xl overflow-hidden font-bold text-sm flex items-center justify-center" style="background:${colorOf(m)}">${face(m)}</span>`;
 // 표에 들어가는 이름 배지
-const tag = name => { const m = D.members.find(x => x.name === name) || { name }, c = colorOf(m);
-  return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold text-slate-800 whitespace-nowrap" style="background:${c}26;box-shadow:inset 3px 0 0 ${c}">${m.emoji ? `<span>${esc(m.emoji)}</span>` : ''}${esc(name)}</span>`; };
-const memRow = m => `<div class="mem py-4 flex flex-col md:flex-row md:items-center gap-3 fade-in">
-  <div class="flex items-center gap-2 md:w-72 shrink-0">
-    ${avatar(m)}
+const tag = name => {
+  const m = D.members.find(x => x.name === name) || { name }, c = colorOf(m);
+  return `<span class="inline-flex items-center gap-1.5 pl-0.5 pr-2 py-0.5 rounded-full font-semibold text-slate-800 whitespace-nowrap" style="background:${c}33">`
+    + `<span class="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-xs" style="background:${c}">${face(m)}</span>${esc(name)}</span>`;
+};
+// 캐릭터·색상 고르기 패널
+const picker = (emo, clr) => `<div class="text-[11px] font-bold text-slate-500 mb-1.5">캐릭터</div>
+  <div class="grid grid-cols-5 sm:grid-cols-10 gap-1.5 mb-3">${CHARS.map((svg, i) => `<button type="button" data-char="c:${i}" aria-label="캐릭터 ${i + 1}" class="aspect-square rounded-lg overflow-hidden transition ${emo === 'c:' + i ? 'ring-2 ring-offset-1 ring-slate-900' : 'hover:scale-105'}" style="background:${clr}">${svg}</button>`).join('')}</div>
+  <div class="text-[11px] font-bold text-slate-500 mb-1.5">색상</div>
+  <div class="grid grid-cols-9 sm:grid-cols-[repeat(18,minmax(0,1fr))] gap-1.5">${COLORS.map(c => `<button type="button" data-color="${c}" aria-label="색상 ${c}" class="aspect-square rounded-full transition ${clr === c ? 'ring-2 ring-offset-1 ring-slate-900' : 'hover:scale-110'}" style="background:${c}"></button>`).join('')}</div>`;
+const memRow = m => `<div class="mem py-4 fade-in"><div class="flex flex-col md:flex-row md:items-center gap-3">
+  <div class="flex items-center gap-2 md:w-56 shrink-0">
+    <button type="button" class="pick shrink-0 rounded-xl hover:ring-2 hover:ring-brand-500/40" title="캐릭터·색상 바꾸기" aria-label="캐릭터·색상 바꾸기">${avatar(m)}</button>
     <input value="${esc(m.name)}" placeholder="이름" class="${small} flex-1 min-w-0 font-bold">
-    <input value="${esc(m.emoji)}" placeholder="🙂" title="캐릭터(이모지)" aria-label="캐릭터" class="emo ${small} !w-12 shrink-0 text-center px-1">
-    <input type="color" value="${colorOf(m)}" title="색상" aria-label="색상" class="clr w-9 h-9 shrink-0 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"></div>
+    <input type="hidden" class="emo" value="${esc(m.emoji)}"><input type="hidden" class="clr" value="${colorOf(m)}"></div>
   <div class="flex flex-wrap gap-1.5 flex-1">${D.positions.map(p => `<label class="cursor-pointer px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all bg-white text-slate-600 border-slate-200 hover:border-slate-300 has-[:checked]:bg-brand-600 has-[:checked]:text-white has-[:checked]:border-brand-600">
     <input type="checkbox" class="sr-only" value="${esc(p.name)}" ${posOf(m).includes(p.name) ? 'checked' : ''}>${esc(p.name)}</label>`).join('') || '<span class="text-xs text-slate-400">포지션을 먼저 등록하세요</span>'}</div>
-  <div class="flex items-center justify-between md:justify-end gap-3">${sw(m.active !== 'FALSE', '활동')}${del}</div></div>`;
+  <div class="flex items-center justify-between md:justify-end gap-3">${sw(m.active !== 'FALSE', '활동')}${del}</div></div>
+  <div class="panel hidden mt-3 p-3 max-w-2xl rounded-xl bg-slate-50 border border-slate-200"></div></div>`;
+// 멤버 행의 현재 값으로 아이콘과 고르기 패널을 다시 그린다.
+const refreshMem = r => {
+  const m = { name: r.querySelector('input').value, emoji: r.querySelector('.emo').value, color: r.querySelector('.clr').value };
+  r.querySelector('.avatar').outerHTML = avatar(m);
+  r.querySelector('.panel').innerHTML = picker(m.emoji, m.color);
+};
 
 function render() {
   const open = D.events.filter(e => e.off !== 'TRUE');
@@ -306,6 +353,10 @@ document.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   const add = (box, html) => { $(box).insertAdjacentHTML('beforeend', html); icons(); };
+  const row = b.closest('.mem');
+  if (b.classList.contains('pick')) { refreshMem(row); return row.querySelector('.panel').classList.toggle('hidden'); }
+  if (b.dataset.char) { row.querySelector('.emo').value = b.dataset.char; return refreshMem(row); }
+  if (b.dataset.color) { row.querySelector('.clr').value = b.dataset.color; return refreshMem(row); }
   if (b.dataset.tab) showTab(b.dataset.tab);
   else if (b.dataset.go) showTab(b.dataset.go);
   else if (b.classList.contains('del')) b.closest('.ev, .pos, .mem').remove();
@@ -352,11 +403,8 @@ document.addEventListener('click', e => {
 // 가로 스크롤 상자 안에서 잘리지 않도록 캡처 영역 전체 너비로 그린다.
 const shot = () => { const el = $('#capture'); return htmlToImage.toBlob(el, { pixelRatio: 2, backgroundColor: '#fff', width: el.scrollWidth, height: el.scrollHeight }); };
 
-// 멤버 행의 이름·캐릭터·색상을 바꾸면 미리보기를 바로 갱신한다.
-document.addEventListener('input', e => {
-  const r = e.target.closest('.mem');
-  if (r) r.querySelector('.avatar').outerHTML = avatar({ name: r.querySelector('input').value, emoji: r.querySelector('.emo').value, color: r.querySelector('.clr').value });
-});
+// 이름을 바꾸면 (캐릭터가 없을 때) 아이콘 글자도 바뀐다.
+document.addEventListener('input', e => { const r = e.target.closest('.mem'); if (r) refreshMem(r); });
 
 $('#month').value = nextMonth();
 $('#month').onchange = load;
