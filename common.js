@@ -20,6 +20,32 @@ document.head.insertAdjacentHTML('beforeend', `<style type="text/tailwindcss">
   .glass { background: rgba(255,255,255,.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
   .fade-in { animation: fadeIn .3s cubic-bezier(.16,1,.3,1) both; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } }
+  /* 화면이 바뀔 때만(#app.enter) 위에서부터 차례로 떠오른다. 버튼을 누를 때마다 다시 깜빡이지 않도록 그 밖에는 끈다. */
+  #app:not(.enter) .fade-in { animation: none; }
+  #app.enter > *, .enter .stagger > * { animation: rise .55s cubic-bezier(.16,1,.3,1) both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+  #app.enter > *:nth-child(2), .enter .stagger > *:nth-child(2) { animation-delay: 45ms; }
+  #app.enter > *:nth-child(3), .enter .stagger > *:nth-child(3) { animation-delay: 90ms; }
+  #app.enter > *:nth-child(4), .enter .stagger > *:nth-child(4) { animation-delay: 135ms; }
+  #app.enter > *:nth-child(5), .enter .stagger > *:nth-child(5) { animation-delay: 180ms; }
+  #app.enter > *:nth-child(6), .enter .stagger > *:nth-child(6) { animation-delay: 225ms; }
+  #app.enter > *:nth-child(7), .enter .stagger > *:nth-child(7) { animation-delay: 270ms; }
+  #app.enter > *:nth-child(8), .enter .stagger > *:nth-child(8) { animation-delay: 315ms; }
+  #app.enter > *:nth-child(9), .enter .stagger > *:nth-child(9) { animation-delay: 360ms; }
+  #app.enter > *:nth-child(10), .enter .stagger > *:nth-child(10) { animation-delay: 405ms; }
+  #app.enter > *:nth-child(11), .enter .stagger > *:nth-child(11) { animation-delay: 450ms; }
+  #app.enter > *:nth-child(12), .enter .stagger > *:nth-child(12) { animation-delay: 495ms; }
+  /* 누를 수 있는 카드는 살짝 떠오르고, 누르는 순간 눌린다. */
+  a.card { transition: transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .3s; }
+  a.card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px -12px rgb(79 70 229 / .25); }
+  a.card:active, .btn:active, button.press:active, [data-who]:active, [data-a]:active, [data-s]:active, [data-role]:active, [data-tag]:active { transform: scale(.97); }
+  .btn, [data-who], [data-a], [data-s], [data-role], [data-tag] { transition: transform .15s ease, background-color .2s, color .2s, border-color .2s, box-shadow .2s; }
+  /* 불러오는 중 자리 표시: 빛이 지나가는 효과 */
+  .shimmer { background: linear-gradient(100deg, #f1f5f9 30%, #e2e8f0 50%, #f1f5f9 70%) 0 0 / 300% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+  @keyframes shimmer { to { background-position: -100% 0; } }
+  .toast-in { animation: toastIn .45s cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(16px) scale(.95); } }
+  .toast-out { transition: opacity .25s, transform .25s; opacity: 0; transform: translateY(8px) scale(.97); }
   .pop { animation: pop .45s cubic-bezier(.34,1.56,.64,1) both; }
   @keyframes pop { from { opacity: 0; transform: scale(.6); } }
   .sw { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
@@ -37,7 +63,16 @@ const fmt = d => { const t = new Date(d + 'T00:00'); return `${t.getMonth() + 1}
 const evName = ev => `${fmt(ev.date)} ${ev.label}${ev.time ? ' ' + ev.time : ''}`;
 const ansText = r => r.attend === 'Y' ? `참석${r.roles ? `(${r.roles.split(',').join('·')})` : ''}` : `불참(${r.reason || '-'}, 주일 ${r.sundayOk === 'Y' ? '가능' : '불가'})`;
 const icons = () => window.lucide?.createIcons();
-const SKELETON = '<div class="card h-24 mb-4 animate-pulse bg-slate-100 border-none"></div>'.repeat(3);
+const SKELETON = '<div class="card h-24 mb-4 shimmer border-none"></div>'.repeat(3);
+// 새 화면을 그리기 직전에 부르면 그 화면이 차례로 떠오르며 나타난다.
+function enter() {
+  const a = $('#app');
+  a.classList.remove('enter');
+  void a.offsetWidth; // 애니메이션을 처음부터 다시 시작
+  a.classList.add('enter');
+  clearTimeout(enter.t);
+  enter.t = setTimeout(() => a.classList.remove('enter'), 1100);
+}
 
 function nextMonth() {
   const n = new Date();
@@ -76,10 +111,10 @@ function toast(msg, kind = 'info') {
   let box = $('#toasts');
   if (!box) document.body.insertAdjacentHTML('beforeend', '<div id="toasts" class="fixed bottom-24 sm:bottom-5 inset-x-4 sm:inset-x-auto sm:right-5 z-[60] flex flex-col items-center sm:items-end gap-2 pointer-events-none"></div>'), box = $('#toasts');
   const t = document.createElement('div');
-  t.className = `fade-in ${TOAST[kind]} text-white text-sm font-semibold px-4 py-3 rounded-xl shadow-lg max-w-sm`;
+  t.className = `toast-in ${TOAST[kind]} text-white text-sm font-semibold px-4 py-3 rounded-xl shadow-lg max-w-sm`;
   t.textContent = msg;
   box.append(t);
-  setTimeout(() => t.remove(), 3200);
+  setTimeout(() => { t.classList.add('toast-out'); setTimeout(() => t.remove(), 260); }, 3200);
 }
 
 // 저장 중에는 화면 전체를 덮는 로딩 표시를 띄우고 중복 클릭을 막는다.
@@ -112,7 +147,7 @@ function monthHome(title, sub) {
   $('#app').innerHTML = `<div class="fade-in">
     <span class="eyebrow text-brand-600">Step 1</span><h2 class="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">${title}</h2>
     <p class="text-sm text-slate-500 mt-1">${sub}</p></div>
-    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 fade-in">${months.map(([d, m]) => `<a href="#/${m}" class="card p-4 sm:p-5 hover:border-brand-300 hover:shadow-md transition-all ${m === cur ? 'ring-2 ring-brand-500/30 border-brand-300' : ''}">
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 stagger">${months.map(([d, m]) => `<a href="#/${m}" class="card p-4 sm:p-5 hover:border-brand-300 hover:shadow-md transition-all ${m === cur ? 'ring-2 ring-brand-500/30 border-brand-300' : ''}">
       <div class="text-xs font-bold ${m === cur ? 'text-brand-600' : 'text-slate-400'}">${tagOf(d) || '&nbsp;'}</div>
       <div class="text-lg font-bold mt-1">${+m.slice(5)}월</div><div class="text-xs text-slate-500">${m.slice(0, 4)}년</div></a>`).join('')}</div>
     <label class="card p-4 flex items-center justify-between gap-3 fade-in"><span class="text-sm font-semibold text-slate-600">다른 달 고르기</span>

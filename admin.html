@@ -27,6 +27,7 @@ const TABS = [['home', '현황', 'activity'], ['sched', '일정', 'calendar-days
 function route() {
   const { m } = parseHash();
   setCrumb(pw && m);
+  enter();
   if (!pw) return renderLogin();
   if (!m) { $('#month').value = ''; return monthHome('관리할 달을 고르세요', '달을 고르면 그 달의 응답 현황, 일정, 팀 구성, 연습표를 관리할 수 있어요.'); }
   if (M() !== m || !D) { $('#month').value = m; D = null; return load(); }
@@ -233,6 +234,7 @@ function render() {
 }
 
 function showTab(k) {
+  if (tab !== k) enter();
   tab = k;
   document.querySelectorAll('[data-tab]').forEach(b => {
     const on = b.dataset.tab === k;

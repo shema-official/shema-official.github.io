@@ -37,6 +37,7 @@ function route() {
   const { m, page } = parseHash();
   view = page || 'menu';
   setCrumb(m);
+  enter();
   window.scrollTo({ top: 0 });
   if (!m) { $('#month').value = ''; return monthHome('어느 달 일정인가요?', '달을 고르면 참석 여부를 등록하거나 연습표를 확인할 수 있어요.'); }
   if (M() !== m || !D) { $('#month').value = m; D = null; me = ''; return load(); }
@@ -86,7 +87,7 @@ function renderRespond() {
         <div><span class="eyebrow text-brand-600">Step 3</span><h2 class="text-lg font-bold mt-0.5">본인의 이름을 선택해주세요</h2></div>
         <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">${ms.filter(m => answered(m.name)).length}/${ms.length}명 응답</span>
       </div>
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">${ms.map(m => {
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 stagger">${ms.map(m => {
         const on = m.name === me, ok = answered(m.name);
         return `<button data-who="${esc(m.name)}" class="text-left p-3 rounded-xl border transition-all flex items-center justify-between gap-1 ${on
           ? 'bg-brand-50/80 border-brand-600 ring-2 ring-brand-500/20' : 'bg-slate-50/60 hover:bg-white border-slate-200/80 hover:border-slate-300'}">
@@ -171,7 +172,7 @@ function form() {
     ${pendingBox()}
     <div class="card p-4"><div class="flex justify-between text-xs font-bold mb-2"><span class="text-slate-500">응답 진행</span><span class="text-brand-600">${n} / ${practices().length}</span></div>
       <div class="h-2 bg-slate-100 rounded-full overflow-hidden"><div class="h-full bg-gradient-to-r from-brand-500 to-violet-500 rounded-full transition-all duration-500" style="width:${practices().length ? n / practices().length * 100 : 0}%"></div></div></div>
-    <div class="space-y-3">${D.events.map(ev => {
+    <div class="space-y-3 stagger">${D.events.map(ev => {
       if (ev.off === 'TRUE') return `<div class="bg-slate-100/80 rounded-2xl border border-slate-200/80 p-5 flex items-center justify-between opacity-75">
         <div class="flex items-center gap-3"><div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-xs">휴무</div>
           <div><span class="font-bold text-slate-700">${fmt(ev.date)}</span> <span class="text-xs px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 font-semibold">연습 없음</span></div></div>
@@ -255,13 +256,13 @@ async function save() {
 document.addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
-  if (b.dataset.who) { me = b.dataset.who; editing = false; loadDraft(); render(); $('#area').scrollIntoView({ behavior: 'smooth' }); }
+  if (b.dataset.who) { me = b.dataset.who; editing = false; loadDraft(); enter(); render(); $('#area').scrollIntoView({ behavior: 'smooth' }); }
   else if (b.dataset.a) setD(b.dataset.a, 'attend', b.dataset.v);
   else if (b.dataset.s) setD(b.dataset.s, 'sundayOk', b.dataset.v);
   else if (b.dataset.role) setD(b.dataset.role, 'roles', [b.dataset.v]);
   else if (b.dataset.tag) setD(b.dataset.tag, 'reason', b.dataset.v);
-  else if (b.id === 'edit') { editing = true; loadDraft(); renderArea(); }
-  else if (b.id === 'cancel') { editing = false; renderArea(); }
+  else if (b.id === 'edit') { editing = true; loadDraft(); enter(); renderArea(); }
+  else if (b.id === 'cancel') { editing = false; enter(); renderArea(); }
   else if (b.id === 'save') run(b, save, D.open ? '제출 중…' : '요청 보내는 중…');
 });
 document.addEventListener('input', e => { const id = e.target.dataset.r; if (id) draft[id] = { ...draft[id], reason: e.target.value }; });
