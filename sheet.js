@@ -98,7 +98,8 @@ function table1(open) {
     <tr class="bg-brand-50 font-bold text-brand-700"><th class="px-3 py-2.5">참석 인원</th>${cols.map(ns => `<td class="px-3 py-2.5 text-center">${ns.length}명</td>`).join('')}</tr></tbody></table></div>`;
 }
 
-function absent(evById) {
+// showReason 이 거짓이면 사유를 빼고 이름·주일 예배 여부만 보여준다.
+function absent(showReason = true) {
   const byName = Object.fromEntries(D.members.map(m => [m.name, m]));
   const days = D.events.filter(e => e.off !== 'TRUE').map(ev => [ev, D.responses.filter(r => r.eventId === ev.id && r.attend === 'N')]).filter(([, rs]) => rs.length);
   if (!days.length) return '<p class="text-sm text-slate-500">불참자가 없습니다.</p>';
@@ -108,5 +109,5 @@ function absent(evById) {
       <div class="bg-slate-50 px-3.5 py-2.5 border-b border-slate-200"><b class="text-sm">${fmt(ev.date)}</b> <span class="text-xs text-slate-500">${esc(ev.label)}</span></div>
       <div class="p-3.5 space-y-2.5">${rs.map(r => `<div><div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full shrink-0 ${r.sundayOk === 'Y' ? 'bg-emerald-500' : 'bg-rose-500'}"></span>
         <span class="text-sm">${tag(r.name)}</span><span class="text-[11px] text-slate-400">${esc(posOf(byName[r.name]).join('·'))}</span></div>
-        <p class="text-xs text-slate-500 pl-3.5 mt-0.5">${esc(r.reason)}</p></div>`).join('')}</div></div>`).join('')}</div>`;
+        ${showReason ? `<p class="text-xs text-slate-500 pl-3.5 mt-0.5">${esc(r.reason)}</p>` : ''}</div>`).join('')}</div></div>`).join('')}</div>`;
 }

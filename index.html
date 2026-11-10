@@ -16,7 +16,7 @@
 </main>
 <script>
 header('이름을 고르고 이번 달 연습 참석 여부를 알려주세요');
-let D, me = '', editing = false, draft = {};
+let D, me = '', editing = false, draft = {}, view = 'menu';
 const REASONS = ['개인 일정', '시험/학업', '가족 행사', '회사/야근', '건강/병원'];
 const M = () => $('#month').value;
 const practices = () => D.events.filter(e => e.off !== 'TRUE');
@@ -32,10 +32,47 @@ async function load() {
   catch (e) { $('#app').innerHTML = `<div class="card p-8 text-center text-sm text-slate-500">불러오지 못했습니다: ${esc(e.message)}</div>`; }
 }
 
+// 주소가 바뀔 때마다 화면을 고른다. 달이 바뀌면 그 달 데이터를 새로 불러온다.
+function route() {
+  const { m, page } = parseHash();
+  view = page || 'menu';
+  setCrumb(m);
+  window.scrollTo({ top: 0 });
+  if (!m) { $('#month').value = ''; return monthHome('어느 달 일정인가요?', '달을 고르면 참석 여부를 등록하거나 연습표를 확인할 수 있어요.'); }
+  if (M() !== m || !D) { $('#month').value = m; D = null; me = ''; return load(); }
+  render();
+}
+
+const back = () => `<a href="#/${M()}" class="inline-flex items-center gap-1 text-sm font-semibold text-slate-500 hover:text-slate-900"><i data-lucide="chevron-left" class="w-4 h-4"></i>${monLabel(M())} 메뉴</a>`;
+
 function render() {
+  if (view === 'respond') return renderRespond();
+  if (view === 'schedule') { $('#app').innerHTML = back() + schedule(); return icons(); }
+  renderMenu();
+}
+
+// 달을 고른 뒤: 일정 등록과 연습표 확인 중 하나를 고른다.
+function renderMenu() {
+  const n = practices().length, m = M();
+  const ms = D.members.filter(x => x.active === 'TRUE'), done = ms.filter(x => answered(x.name)).length;
+  const item = (href, icon, color, title, desc, badge) => `<a href="${href}" class="card p-5 sm:p-6 flex items-center gap-4 hover:border-${color}-300 hover:shadow-md transition-all fade-in">
+    <div class="w-12 h-12 rounded-2xl bg-${color}-50 text-${color}-600 flex items-center justify-center shrink-0"><i data-lucide="${icon}" class="w-6 h-6"></i></div>
+    <div class="flex-1 min-w-0"><div class="flex items-center gap-2 flex-wrap"><h3 class="font-bold text-base sm:text-lg">${title}</h3>${badge}</div>
+      <p class="text-xs sm:text-sm text-slate-500 mt-0.5">${desc}</p></div>
+    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-300 shrink-0"></i></a>`;
+  const pill = (t, c) => `<span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-${c}-100 text-${c}-700">${t}</span>`;
+  $('#app').innerHTML = `<div class="fade-in"><span class="eyebrow text-brand-600">Step 2</span>
+      <h2 class="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">${monLabel(m)} 연습</h2>
+      <p class="text-sm text-slate-500 mt-1">${n ? `연습 ${n}회 · ${done}/${ms.length}명 응답` : '아직 이 달의 연습 일정이 없습니다.'}</p></div>
+    ${!n ? '' : item(`#/${m}/respond`, 'calendar-check', 'brand', '일정 등록', D.open ? '이름을 고르고 연습 참석 여부를 알려주세요.' : '조사가 마감되었어요. 응답을 바꾸면 수정 요청으로 전달됩니다.', D.open ? pill('조사 진행 중', 'brand') : pill('마감', 'amber'))
+      + item(`#/${m}/schedule`, 'table-2', 'emerald', '연습표 확인', D.open ? '조사가 마감되면 연습표가 공개돼요.' : '날짜별 포지션 참석자와 불참자를 확인하세요.', D.open ? pill('조사 중', 'slate') : pill('공개', 'emerald'))}`;
+  icons();
+}
+
+function renderRespond() {
   const ms = D.members.filter(m => m.active === 'TRUE');
   const mon = +M().slice(5);
-  $('#app').innerHTML = `
+  $('#app').innerHTML = `${back()}
     <div class="fade-in rounded-2xl p-4 sm:p-5 border flex items-start gap-3.5 ${D.open ? 'bg-gradient-to-r from-brand-50/90 to-violet-50/90 border-brand-200/80' : 'bg-amber-50/90 border-amber-200'}">
       <div class="w-9 h-9 rounded-xl ${D.open ? 'bg-brand-600' : 'bg-amber-500'} text-white flex items-center justify-center shrink-0"><i data-lucide="${D.open ? 'sparkles' : 'lock'}" class="w-5 h-5"></i></div>
       <div><span class="text-xs font-bold px-2 py-0.5 rounded-md border bg-white/80 ${D.open ? 'text-brand-700 border-brand-200' : 'text-amber-800 border-amber-300'}">${mon}월 연습 조사 ${D.open ? '진행 중' : '마감'}</span>
@@ -44,10 +81,9 @@ function render() {
           : '응답을 바꾸면 <strong>관리자에게 수정 요청</strong>으로 전달되고, 승인되면 연습표에 반영됩니다.'}</p></div>
     </div>
 
-    ${schedule()}
     <div class="card p-5 sm:p-6 fade-in">
       <div class="flex items-center justify-between mb-4">
-        <div><span class="eyebrow text-brand-600">Step 1</span><h2 class="text-lg font-bold mt-0.5">본인의 이름을 선택해주세요</h2></div>
+        <div><span class="eyebrow text-brand-600">Step 3</span><h2 class="text-lg font-bold mt-0.5">본인의 이름을 선택해주세요</h2></div>
         <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">${ms.filter(m => answered(m.name)).length}/${ms.length}명 응답</span>
       </div>
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">${ms.map(m => {
@@ -73,7 +109,7 @@ function schedule() {
     <div class="flex items-center justify-between mb-4"><div><span class="eyebrow text-brand-600">Schedule</span><h2 class="text-lg font-bold mt-0.5">${mon}월 연습표</h2></div>
       <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">연습 ${practices().length}회</span></div>
     <div class="overflow-x-auto -mx-1 px-1 pb-1"><div style="min-width:${Math.max(320, 120 + practices().length * 110)}px">${table1(practices())}</div></div>
-    <div class="mt-6">${section('rose', '불참자와 주일 예배 참석 여부', absent())}</div>
+    <div class="mt-6">${section('rose', '불참자와 주일 예배 참석 여부', absent(false))}</div>
     <p class="text-[11px] text-slate-400 mt-3">수정 요청이 승인되거나 일정이 바뀌면 이 표에 바로 반영됩니다.</p></div>`;
 }
 
@@ -230,10 +266,9 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('input', e => { const id = e.target.dataset.r; if (id) draft[id] = { ...draft[id], reason: e.target.value }; });
 
-$('#month').value = nextMonth();
-$('#month').onchange = load;
+window.onhashchange = route;
 icons();
-load();
+route();
 </script>
 </body>
 </html>

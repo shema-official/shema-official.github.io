@@ -93,6 +93,34 @@ async function run(btn, fn, label = '저장 중…') {
   try { await fn(); } catch (e) { toast(e.message, 'err'); } finally { if (btn) btn.disabled = false; ov.remove(); icons(); }
 }
 
+// 주소 해시로 화면을 나눈다: #/ 월 선택, #/2026-12 그 달 화면, #/2026-12/respond 처럼 세부 화면.
+// 뒤로 가기 버튼이 그대로 동작한다.
+const parseHash = () => { const [, m, page] = /^#\/(\d{4}-\d{2})(?:\/(\w+))?/.exec(location.hash) || []; return { m, page }; };
+const monLabel = m => `${m.slice(0, 4)}년 ${+m.slice(5)}월`;
+// 헤더의 선택한 달 표시. 월이 없으면 숨긴다.
+function setCrumb(m) {
+  const c = $('#crumb');
+  c.classList.toggle('hidden', !m);
+  c.classList.toggle('inline-flex', !!m);
+  c.querySelector('span').textContent = m ? monLabel(m) : '';
+}
+// 월 선택 화면. 지난 달부터 넉 달 뒤까지 고르고, 그 밖의 달은 직접 입력한다.
+function monthHome(title, sub) {
+  const now = new Date(), cur = nextMonth();
+  const months = [-1, 0, 1, 2, 3, 4].map(d => { const t = new Date(now.getFullYear(), now.getMonth() + d, 1); return [d, `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`]; });
+  const tagOf = d => ({ '-1': '지난 달', 0: '이번 달', 1: '다음 달' })[d] || '';
+  $('#app').innerHTML = `<div class="fade-in">
+    <span class="eyebrow text-brand-600">Step 1</span><h2 class="text-xl sm:text-2xl font-bold tracking-tight mt-0.5">${title}</h2>
+    <p class="text-sm text-slate-500 mt-1">${sub}</p></div>
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 fade-in">${months.map(([d, m]) => `<a href="#/${m}" class="card p-4 sm:p-5 hover:border-brand-300 hover:shadow-md transition-all ${m === cur ? 'ring-2 ring-brand-500/30 border-brand-300' : ''}">
+      <div class="text-xs font-bold ${m === cur ? 'text-brand-600' : 'text-slate-400'}">${tagOf(d) || '&nbsp;'}</div>
+      <div class="text-lg font-bold mt-1">${+m.slice(5)}월</div><div class="text-xs text-slate-500">${m.slice(0, 4)}년</div></a>`).join('')}</div>
+    <label class="card p-4 flex items-center justify-between gap-3 fade-in"><span class="text-sm font-semibold text-slate-600">다른 달 고르기</span>
+      <input type="month" id="otherMonth" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold"></label>`;
+  $('#otherMonth').onchange = e => { if (e.target.value) location.hash = '#/' + e.target.value; };
+  icons();
+}
+
 // 공통 헤더. right 에는 화면별 오른쪽 요소를 넣는다.
 function header(sub) {
   document.body.insertAdjacentHTML('afterbegin', `<header class="sticky top-0 z-40 glass border-b border-slate-200/80">
@@ -102,6 +130,7 @@ function header(sub) {
         <div class="min-w-0"><h1 class="font-bold text-base sm:text-lg tracking-tight truncate">찬양팀 연습 참여 조사</h1>
           <p class="text-xs text-slate-500 hidden sm:block">${sub}</p></div>
       </div>
-      <input type="month" id="month" aria-label="조사 월" class="w-36 sm:w-auto shrink-0 bg-white border border-slate-200 rounded-xl px-2.5 sm:px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-brand-500">
+      <input type="hidden" id="month">
+      <a id="crumb" href="#/" class="hidden shrink-0 items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-slate-50" title="다른 달 고르기"><i data-lucide="calendar" class="w-4 h-4 text-brand-600"></i><span></span><i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i></a>
     </div></header>`);
 }

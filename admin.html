@@ -23,6 +23,16 @@ const M = () => $('#month').value;
 // 등록된 포지션만 인정한다(등록 순서 유지).
 const TABS = [['home', '현황', 'activity'], ['sched', '일정', 'calendar-days'], ['team', '팀 구성', 'users'], ['table', '표 만들기', 'table-2']];
 
+// 로그인 → 월 선택(#/) → 그 달 관리 화면(#/2026-12)
+function route() {
+  const { m } = parseHash();
+  setCrumb(pw && m);
+  if (!pw) return renderLogin();
+  if (!m) { $('#month').value = ''; return monthHome('관리할 달을 고르세요', '달을 고르면 그 달의 응답 현황, 일정, 팀 구성, 연습표를 관리할 수 있어요.'); }
+  if (M() !== m || !D) { $('#month').value = m; D = null; return load(); }
+  render();
+}
+
 async function load() {
   if (!pw) return renderLogin();
   $('#app').innerHTML = SKELETON;
@@ -43,7 +53,7 @@ function renderLogin() {
       await post({ action: 'auth', pw: $('#pw').value });
       pw = $('#pw').value;
       try { sessionStorage.setItem('pw', pw); } catch {}
-      load();
+      route();
     }, '확인 중…');
   };
 }
@@ -325,10 +335,9 @@ const shot = () => { const el = $('#capture'); return htmlToImage.toBlob(el, { p
 // 이름을 바꾸면 (캐릭터가 없을 때) 아이콘 글자도 바뀐다.
 document.addEventListener('input', e => { const r = e.target.closest('.mem'); if (r) refreshMem(r); });
 
-$('#month').value = nextMonth();
-$('#month').onchange = load;
+window.onhashchange = route;
 icons();
-load();
+route();
 </script>
 </body>
 </html>
