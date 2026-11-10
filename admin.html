@@ -85,6 +85,19 @@ function render() {
   const total = act_.length, done = total - missing.length, pct = total ? Math.round(done / total * 100) : 0;
   const pill = r => r.attend === 'Y' ? `<span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold">참석</span>`
     : `<span class="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold">불참 (${esc(r.reason)} · 주일 ${r.sundayOk === 'Y' ? '가능' : '불가'})</span>`;
+  // 수정 요청 비교용: 항목별 값. 바뀐 항목은 변경 쪽에 강조한다.
+  const fields = r => !r ? [['응답', '미응답']] : r.attend === 'Y'
+    ? [['응답', '참석'], ['역할', (r.roles || '-').split(',').join(' · ')]]
+    : [['응답', '불참'], ['사유', r.reason || '-'], ['주일 예배', r.sundayOk === 'Y' ? '참석 가능' : '불가']];
+  const box = (title, r, cmp, base) => {
+    const old = cmp && Object.fromEntries(fields(base));
+    return `<div class="flex-1 min-w-0 rounded-xl border px-3.5 py-3 ${cmp ? 'bg-white border-brand-200' : 'bg-slate-50 border-slate-200/70'}">
+      <div class="text-[11px] font-bold mb-1.5 ${cmp ? 'text-brand-600' : 'text-slate-400'}">${title}</div>
+      <dl class="grid grid-cols-[4.5rem_1fr] gap-y-1 text-xs">${fields(r).map(([k, v]) => {
+        const changed = cmp && old[k] !== v;
+        return `<dt class="text-slate-500">${k}</dt><dd class="break-words ${changed ? 'font-bold text-brand-700' : 'text-slate-700'}">${esc(v)}${changed ? ' <span class="text-[10px] font-bold px-1 rounded bg-brand-100">변경</span>' : ''}</dd>`;
+      }).join('')}</dl></div>`;
+  };
 
   $('#app').innerHTML = `
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-6">
@@ -128,9 +141,10 @@ function render() {
       <div class="divide-y divide-slate-100">${pending.map(q => `<div class="p-5 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:bg-slate-50/50 transition-all">
         <div class="space-y-2.5 flex-1">
           <div class="flex items-center gap-2"><span class="font-bold">${esc(q.name)}</span><span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600">${esc(posOf(D.members.find(m => m.name === q.name)).join(' · '))}</span></div>
-          <div class="flex flex-wrap items-center gap-2 text-xs bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/70">
-            <span class="font-bold text-slate-800">${esc(evName(evById[q.eventId]))}</span>${cur(q) ? pill(cur(q)) : '<span class="text-slate-400">미응답</span>'}
-            <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-slate-400"></i>${pill(q)}</div>
+          <div class="text-sm font-bold text-slate-800 flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>${esc(evName(evById[q.eventId]))}
+            <span class="text-[11px] font-normal text-slate-400">${new Date(q.createdAt).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })} 요청</span></div>
+          <div class="flex flex-col sm:flex-row sm:items-stretch gap-2">${box('기존 응답', cur(q))}
+            <i data-lucide="arrow-right" class="w-4 h-4 text-slate-400 self-center rotate-90 sm:rotate-0 shrink-0"></i>${box('변경 요청', q, true, cur(q))}</div>
           ${q.note ? `<p class="text-xs text-slate-600 bg-amber-50/70 border border-amber-200/60 px-3 py-2 rounded-lg"><strong class="text-amber-800">요청 메모:</strong> ${esc(q.note)}</p>` : ''}
         </div>
         <div class="flex items-center gap-2 self-end lg:self-center shrink-0">
