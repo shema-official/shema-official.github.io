@@ -160,11 +160,11 @@ function monthHome(title, sub) {
 function header(sub) {
   document.body.insertAdjacentHTML('afterbegin', `<header class="sticky top-0 z-40 glass border-b border-slate-200/80">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-3 min-w-0">
+      <a href="#/" title="처음 화면으로" class="flex items-center gap-3 min-w-0 hover:opacity-80 transition-opacity">
         <div class="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-brand-600 to-violet-600 flex items-center justify-center text-white shadow-sm shadow-brand-500/20"><i data-lucide="music-4" class="w-5 h-5"></i></div>
         <div class="min-w-0"><h1 class="font-bold text-base sm:text-lg tracking-tight truncate">찬양팀 연습 참여 조사</h1>
           <p class="text-xs text-slate-500 hidden sm:block">${sub}</p></div>
-      </div>
+      </a>
       <input type="hidden" id="month">
       <a id="crumb" href="#/" class="hidden shrink-0 items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold hover:bg-slate-50" title="다른 달 고르기"><i data-lucide="calendar" class="w-4 h-4 text-brand-600"></i><span></span><i data-lucide="chevron-down" class="w-3.5 h-3.5 text-slate-400"></i></a>
     </div></header>`);
